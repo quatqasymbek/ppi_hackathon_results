@@ -136,10 +136,6 @@ else:
     st.title("🏆 Live Results")
     st.caption(f"Last update: {state.get('updated_at')}")
 
-    refresh = st.sidebar.toggle("Auto-refresh (5s)", value=True)
-    if refresh:
-        st.markdown("<meta http-equiv='refresh' content='5'>", unsafe_allow_html=True)
-
     df = compute_table(state)
 
     winner = df.iloc[0]["Team"] if len(df) else "—"
@@ -152,6 +148,10 @@ else:
     st.bar_chart(df.set_index("Team")["Total"])
 
     st.subheader("Criteria breakdown")
+    criteria_cols = [c for c in state["criteria"] if c in df.columns]
+    st.bar_chart(df.set_index("Team")[criteria_cols])
+
+    st.caption("Input is hidden on this screen. Only results are shown.")
     criteria_cols = [c for c in state["criteria"] if c in df.columns]
     st.bar_chart(df.set_index("Team")[criteria_cols])
 
