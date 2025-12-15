@@ -388,4 +388,17 @@ else:
         if rank == 1: cls += " top1"
         elif rank == 2: cls += " top2"
         elif rank == 3: cls += " top3"
-        rows_html += f"<div class='{cls}'><div class='rank'>{left}</div><div class=_
+        rows_html += f"<div class='{cls}'><div class='rank'>{left}</div><div class='team'>{team}<span class='badchip'>{badge}</span></div><div class='score'>{total}</div></div>"
+    rows_html += "</div>"
+    render_html(rows_html)
+
+    # DOWNLOAD EXCEL
+    excel_bytes = to_excel_bytes(df.copy(), updated_at)
+    filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
+    st.download_button(
+        label="⬇️ Нәтижені Excel ретінде жүктеу / Скачать результаты в Excel",
+        data=excel_bytes,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
