@@ -182,14 +182,13 @@ def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
 # ---------------- APP ----------------
 state = load_state()
 
-# Sidebar labels (as requested)
 st.sidebar.markdown("### Режим / Режим")
-mode = st.sidebar.radio(" ", ["Әділқазы / Жюри", "Экран / Экран"], index=0)
+mode = st.sidebar.radio(" ", ["Әділқазы / Жюри", "Экран / Экран"], index=0, key="mode_radio")
 
 # ---------------- ADMIN ----------------
 if mode.startswith("Әділқазы"):
     if PIN_REQUIRED:
-        entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password")
+        entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password", key="pin_input")
         if entered != PIN:
             st.warning("PIN енгізіңіз / Введите PIN")
             st.stop()
@@ -204,15 +203,17 @@ if mode.startswith("Әділқазы"):
             "Командалар (әр жолға бір команда) / Команды (по одной в строке)",
             "\n".join(state["teams"]),
             height=160,
+            key="teams_text",
         )
         criteria_text = st.text_area(
             "Критерийлер (әр жолға бір критерий) / Критерии (по одному в строке)",
             "\n".join(state["criteria"]),
             height=160,
+            key="criteria_text",
         )
 
         cA, cB = st.columns([1, 2])
-        if cA.button("✅ Сақтау / Сохранить"):
+        if cA.button("✅ Сақтау / Сохранить", key="save_names_btn"):
             teams = [x.strip() for x in teams_text.splitlines() if x.strip()]
             criteria = [x.strip() for x in criteria_text.splitlines() if x.strip()]
 
@@ -236,7 +237,7 @@ if mode.startswith("Әділқазы"):
             st.success("Сақталды / Сохранено")
             st.rerun()
 
-        if cB.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0"):
+        if cB.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_expander_btn"):
             state = default_state()
             save_state(state)
             st.success("Қайтарылды / Сброс выполнен")
@@ -256,19 +257,23 @@ if mode.startswith("Әділқазы"):
                 input_key = f"{t}__{c}"
                 default_val = int(state["scores"][t].get(c, 0))
                 val = cols[i + 1].number_input(
-                    c, min_value=0, max_value=MAX_PER_CRITERION, step=1, value=default_val, key=input_key
+                    c,
+                    min_value=0,
+                    max_value=MAX_PER_CRITERION,
+                    step=1,
+                    value=default_val,
+                    key=input_key,
                 )
                 state["scores"][t][c] = int(val)
 
     c1, c2, _ = st.columns([1, 1, 2])
 
-    if c1.button("💾 Сақтау / Сохранить"):
+    if c1.button("💾 Сақтау / Сохранить", key="save_scores_btn"):
         save_state(state)
         st.success("Сақталды / Сохранено")
         st.rerun()
 
-    # replaced "Open screen" with reset-to-0
-    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0"):
+    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_bottom_btn"):
         state = default_state()
         save_state(state)
         st.success("Қайтарылды / Сброс выполнен")
@@ -286,7 +291,6 @@ else:
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
-    # CRITERIA AVERAGES
     render_html("<hr class='hr'>")
     bi_h2(
         "Критерийлер бойынша орташа балл (барлық командалар)",
@@ -313,7 +317,6 @@ else:
     )
     st.altair_chart(chart, use_container_width=True)
 
-    # RADAR
     render_html("<hr class='hr'>")
     bi_h2(
         "Командалардың профилі (радар диаграмма, шкала 0–2)",
@@ -336,7 +339,6 @@ else:
             fig = plot_radar_team_vs_avg(team, team_vals, avg_vals, criteria, max_val=MAX_PER_CRITERION)
             cols[j].pyplot(fig, clear_figure=True)
 
-    # LEADERBOARD
     render_html("<hr class='hr'>")
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
 
@@ -356,7 +358,6 @@ else:
     rows_html += "</div>"
     render_html(rows_html)
 
-    # DOWNLOAD EXCEL
     excel_bytes = to_excel_bytes(df.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
     st.download_button(
@@ -365,4 +366,5 @@ else:
         file_name=filename,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
+        key="download_excel_btn",
     )
