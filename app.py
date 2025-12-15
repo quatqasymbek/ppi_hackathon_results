@@ -2,33 +2,53 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import sys
+
+# --- CONFIGURATION / SECRETS CHECK ---
+try:
+    # Safely retrieve secrets with a robust check
+    SHEET_NAME = st.secrets["app"]["sheet_name"]
+    WORKSHEET_NAME = st.secrets["app"]["worksheet_name"]
+    GCP_SERVICE_ACCOUNT_INFO = st.secrets["gcp_service_account"]
+    
+    # Check for a specific key existence to rule out general config failure
+    if not st.secrets.get("gcp_service_account_check", {}).get("GCP_KEY_EXISTS"):
+        raise KeyError("GCP_KEY_EXISTS check failed.")
+
+except KeyError:
+    st.error("❌ Configuration Error: Streamlit secrets not loaded correctly.")
+    st.markdown("""
+        **Troubleshooting Steps:**
+        1.  Ensure you have a `.streamlit/secrets.toml` file (local) or your secrets are correctly configured in Streamlit Cloud.
+        2.  Verify the keys `[gcp_service_account]`, `[app]`, and `[gcp_service_account_check]` exist and are spelled exactly as shown.
+        3.  The app cannot proceed without these secrets.
+    """)
+    sys.exit() # Use sys.exit() instead of st.stop() for robustness if the error happens very early
 
 st.set_page_config(page_title="Hackathon Live Scores", layout="wide")
-
-SHEET_NAME = st.secrets["app"]["sheet_name"]
-WORKSHEET_NAME = st.secrets["app"]["worksheet_name"]
-
 st.title("🏆 Hackathon Live Scoring Dashboard")
 
 # ---- Auto refresh ----
 auto = st.toggle("Auto-refresh (10s)", value=True)
 if auto:
+    # Use the 'time' module to generate a unique key based on refresh interval
     st.autorefresh(interval=10_000, key="refresh")
 
 @st.cache_resource
 def gsheet_client():
     scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     
-    # 🌟 FIX: Create a copy of the secrets dictionary to modify it, 
+    # FIX: Create a copy of the secrets dictionary to modify it, 
     # and use .strip() on the private_key to remove any hidden whitespace 
-    # that causes binascii.Error during base64 decoding.
-    sa_info = st.secrets["gcp_service_account"].copy()
+    # that caused the earlier binascii.Error.
+    sa_info = GCP_SERVICE_ACCOUNT_INFO.copy()
     sa_info["private_key"] = sa_info["private_key"].strip() 
     
     creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
     return gspread.authorize(creds)
 
 def load_raw():
+    # This function will only be called if the secrets check passed
     gc = gsheet_client()
     sh = gc.open(SHEET_NAME)
     ws = sh.worksheet(WORKSHEET_NAME)
@@ -58,7 +78,13 @@ def normalize_matrix(df: pd.DataFrame) -> pd.DataFrame:
                 if v in ("", None):
                     ok = False
                     break
-                vals.append(int(v))
+                # Ensure value is convertible to int before appending
+                try:
+                    vals.append(int(v))
+                except (ValueError, TypeError):
+                    ok = False
+                    break
+                    
             if ok:
                 rows.append({
                     "timestamp": ts,
@@ -68,9 +94,11 @@ def normalize_matrix(df: pd.DataFrame) -> pd.DataFrame:
                 })
     return pd.DataFrame(rows)
 
+# --- START APP LOGIC ---
+
 df_raw = load_raw()
 if df_raw.empty:
-    st.info("No votes yet.")
+    st.info("No votes yet. Dataframe is empty.")
     st.stop()
 
 df = normalize_matrix(df_raw)
