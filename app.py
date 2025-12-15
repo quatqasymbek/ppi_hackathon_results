@@ -25,7 +25,6 @@ PIN_REQUIRED = PIN is not None
 
 # ---------------- SAFE HTML RENDER ----------------
 def render_html(html: str):
-    # remove indentation that causes markdown code blocks
     html = textwrap.dedent(html).strip()
     st.markdown(html, unsafe_allow_html=True)
 
@@ -36,15 +35,6 @@ render_html("""
 .block-container { padding-top: 2.4rem; padding-bottom: 2.2rem; max-width: 1400px; }
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
 .hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
-
-/* Podium */
-.podium { display: grid; grid-template-columns: 1fr 1.18fr 1fr; gap: 14px; margin-top: 12px; }
-.pcard { border: 1px solid rgba(255,255,255,0.10); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,0.03); }
-.pcard.center { transform: translateY(-8px); box-shadow: 0 14px 30px rgba(0,0,0,0.20); background: rgba(255,255,255,0.04); }
-.pcard .place { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 6px; }
-.pcard .team { font-size: 1.35rem; font-weight: 900; line-height: 1.1; }
-.pcard .score { margin-top: 8px; font-size: 0.96rem; color: #9aa0a6; }
-.pcard .emoji { font-size: 1.2rem; margin-right: 8px; }
 
 /* Leaderboard list */
 .lb { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
@@ -246,10 +236,10 @@ if mode.startswith("Әділқазы"):
             st.success("Сақталды / Сохранено")
             st.rerun()
 
-        if cB.button("↩ Барлығын 0-ге қайтару / Reset all to 0"):
+        if cB.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0"):
             state = default_state()
             save_state(state)
-            st.success("Қайтарылды / Reset done")
+            st.success("Қайтарылды / Сброс выполнен")
             st.rerun()
 
     render_html("<hr class='hr'>")
@@ -271,13 +261,18 @@ if mode.startswith("Әділқазы"):
                 state["scores"][t][c] = int(val)
 
     c1, c2, _ = st.columns([1, 1, 2])
-    if c1.button("💾 Сақтау / Save"):
+
+    if c1.button("💾 Сақтау / Сохранить"):
         save_state(state)
-        st.success("Сақталды / Saved")
+        st.success("Сақталды / Сохранено")
         st.rerun()
 
-    if c2.button("👀 Экранды ашу / Open screen"):
-        st.info("Сол жақтан Экран / Экран таңдаңыз • Выберите Экран / Экран слева")
+    # replaced "Open screen" with reset-to-0
+    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0"):
+        state = default_state()
+        save_state(state)
+        st.success("Қайтарылды / Сброс выполнен")
+        st.rerun()
 
 # ---------------- PUBLIC / SCREEN ----------------
 else:
@@ -290,37 +285,6 @@ else:
     df = compute_table(state)
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
-
-    ## PODIUM (no cups in titles)
-    #render_html("<hr class='hr'>")
-    #bi_h2("Жеңімпаздар", "Победители")
-
-    #top3 = df.head(3)
-    #first = top3.iloc[0] if len(top3) > 0 else None
-    #second = top3.iloc[1] if len(top3) > 1 else None
-    #third = top3.iloc[2] if len(top3) > 2 else None
-
-    #podium_html = "<div class='podium'>"
-    #podium_html += (
-     #   f"<div class='pcard'><div class='place'><span class='emoji'>🥈</span>2-орын / 2 место</div>"
-     #   f"<div class='team'>{second['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(second['Total'])}</b></div></div>"
-     #   if second is not None
-     #   else "<div class='pcard'><div class='place'>🥈 2-орын / 2 место</div><div class='team'>—</div></div>"
-    #)
-    #podium_html += (
-     #   f"<div class='pcard center'><div class='place'><span class='emoji'>🥇</span>1-орын / 1 место</div>"
-     #   f"<div class='team'>{first['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div></div>"
-     #   if first is not None
-     #   else "<div class='pcard center'><div class='place'>🥇 1-орын / 1 место</div><div class='team'>—</div></div>"
-    #)
-    #podium_html += (
-    #    f"<div class='pcard'><div class='place'><span class='emoji'>🥉</span>3-орын / 3 место</div>"
-    #    f"<div class='team'>{third['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(third['Total'])}</b></div></div>"
-    #    if third is not None
-    #    else "<div class='pcard'><div class='place'>🥉 3-орын / 3 место</div><div class='team'>—</div></div>"
-    #)
-    #podium_html += "</div>"
-    #render_html(podium_html)
 
     # CRITERIA AVERAGES
     render_html("<hr class='hr'>")
