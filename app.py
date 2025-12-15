@@ -21,18 +21,24 @@ DATA_FILE = "scores.json"
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
+
+# ---------------- HTML RENDER HELPER ----------------
+def render_html(html: str):
+    # Single place to ensure HTML is always rendered
+    st.markdown(html, unsafe_allow_html=True)
+
+
 # ---------------- GLOBAL STYLE ----------------
-st.markdown(
+render_html(
     """
 <style>
-/* Give room for Streamlit top header; remove max-width so title isn't cut */
+/* Give room for Streamlit top header; keep generous width */
 .block-container {
   padding-top: 2.4rem;
   padding-bottom: 2.2rem;
   max-width: 1400px;
 }
 
-/* Typography */
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
 .hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
 
@@ -91,35 +97,33 @@ st.markdown(
 /* Make matplotlib charts a bit tighter */
 canvas { border-radius: 14px; }
 </style>
-""",
-    unsafe_allow_html=True,
+"""
 )
 
 # ---------------- BILINGUAL HELPERS ----------------
 def bi_h1(kk: str, ru: str):
-    st.markdown(
+    render_html(
         f"""
 <div style="line-height:1.1">
   <div style="font-size:2.1rem;font-weight:950;margin:0">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
-""",
-        unsafe_allow_html=True,
+"""
     )
 
 def bi_h2(kk: str, ru: str):
-    st.markdown(
+    render_html(
         f"""
 <div style="line-height:1.15;margin-top:0.2rem">
   <div style="font-size:1.25rem;font-weight:900;margin:0">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
-""",
-        unsafe_allow_html=True,
+"""
     )
 
 def caption_bi(kk: str, ru: str):
-    st.markdown(f"<div class='small-muted'>{kk} • {ru}</div>", unsafe_allow_html=True)
+    render_html(f"<div class='small-muted'>{kk} • {ru}</div>")
+
 
 # ---------------- STORAGE ----------------
 def default_state():
@@ -149,6 +153,7 @@ def save_state(state: dict):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
     os.replace(tmp, DATA_FILE)
+
 
 # ---------------- COMPUTE ----------------
 def compute_table(state: dict) -> pd.DataFrame:
@@ -181,6 +186,7 @@ def criterion_averages(df: pd.DataFrame, criteria: list[str]) -> pd.DataFrame:
         {"Criterion": criteria, "Average": [float(df[c].mean()) for c in criteria]}
     )
     return out.sort_values("Average", ascending=False).reset_index(drop=True)
+
 
 # ---------------- RADAR ----------------
 def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
@@ -224,6 +230,7 @@ def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
     fig.tight_layout()
     return fig
 
+
 # ---------------- EXPORT ----------------
 def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
     buf = BytesIO()
@@ -233,27 +240,29 @@ def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
+
 # ---------------- APP ----------------
 state = load_state()
 
-st.sidebar.markdown("### Mode / Режим")
+# Sidebar labels EXACTLY as you asked
+st.sidebar.markdown("### Режим / Режим")
 mode = st.sidebar.radio(
     " ",
-    ["Admin (Jury) / Әділқазы", "Public Screen / Экран"],
+    ["Әділқазы / Жюри", "Экран / Экран"],
     index=0,
 )
 
 # ---------------- ADMIN ----------------
-if mode.startswith("Admin"):
+if mode.startswith("Әділқазы"):
     if PIN_REQUIRED:
-        entered = st.sidebar.text_input("Admin PIN", type="password")
+        entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password")
         if entered != PIN:
             st.warning("PIN енгізіңіз / Введите PIN")
             st.stop()
 
     bi_h1("Әділқазы панелі", "Панель жюри")
     caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    render_html("<hr class='hr'>")
 
     bi_h2("Атауларды баптау", "Настройка названий")
     with st.expander("✏️ Командалар және критерийлер / Команды и критерии"):
@@ -299,7 +308,7 @@ if mode.startswith("Admin"):
             st.success("Қайтарылды / Reset done")
             st.rerun()
 
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    render_html("<hr class='hr'>")
     bi_h2("Бағаларды енгізу (0–2)", "Ввод баллов (0–2)")
 
     teams = state["teams"]
@@ -328,15 +337,15 @@ if mode.startswith("Admin"):
         st.success("Сақталды / Saved")
         st.rerun()
 
-    if c2.button("👀 Экранды ашу / Open public screen"):
-        st.info("Сол жақтан Public Screen / Экран таңдаңыз • Выберите Public Screen / Экран слева")
+    if c2.button("👀 Экранды ашу / Open screen"):
+        st.info("Сол жақтан Экран / Экран таңдаңыз • Выберите Экран / Экран слева")
 
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    render_html("<hr class='hr'>")
     bi_h2("Алдын ала қарау", "Предпросмотр")
     df_admin = compute_table(state)
     st.dataframe(df_admin, use_container_width=True)
 
-# ---------------- PUBLIC ----------------
+# ---------------- PUBLIC / SCREEN ----------------
 else:
     bi_h1("Хакатон нәтижелері", "Результаты хакатона")
     caption_bi(
@@ -348,9 +357,9 @@ else:
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
-    # --- PODIUM ---
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
-    bi_h2("Жеңімпаздар 🏆", "Победители 🏆")
+    # --- PODIUM (NO 🏆 in title) ---
+    render_html("<hr class='hr'>")
+    bi_h2("Жеңімпаздар", "Победители")
 
     top3 = df.head(3)
     first = top3.iloc[0] if len(top3) > 0 else None
@@ -396,10 +405,10 @@ else:
         podium_html += """<div class="pcard"><div class="place">🥉 3-орын / 3 место</div><div class="team">—</div></div>"""
 
     podium_html += "</div>"
-    st.markdown(podium_html, unsafe_allow_html=True)
+    render_html(podium_html)
 
-    # --- CRITERIA AVERAGES (gradient orange->green) ---
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    # --- CRITERIA AVERAGES ---
+    render_html("<hr class='hr'>")
     bi_h2(
         "Критерийлер бойынша орташа балл (барлық командалар)",
         "Средний балл по критериям (по всем командам)",
@@ -429,7 +438,7 @@ else:
     st.altair_chart(chart, use_container_width=True)
 
     # --- RADAR ---
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    render_html("<hr class='hr'>")
     bi_h2(
         "Командалардың профилі (радар диаграмма, шкала 0–2)",
         "Профиль команд (радар-диаграмма, шкала 0–2)",
@@ -451,8 +460,8 @@ else:
             fig = plot_radar_team_vs_avg(team, team_vals, avg_vals, criteria, max_val=MAX_PER_CRITERION)
             cols[j].pyplot(fig, clear_figure=True)
 
-    # --- MODERN LEADERBOARD (no ugly dataframe) + Excel download ---
-    st.markdown("<hr class='hr'>", unsafe_allow_html=True)
+    # --- LEADERBOARD ---
+    render_html("<hr class='hr'>")
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
@@ -483,9 +492,9 @@ else:
         """
 
     rows_html += "</div>"
-    st.markdown(rows_html, unsafe_allow_html=True)
+    render_html(rows_html)
 
-    # Download Excel under scoreboard
+    # --- DOWNLOAD EXCEL ---
     excel_bytes = to_excel_bytes(df.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
 
@@ -496,5 +505,3 @@ else:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
-
-    st.caption("Экранда тек нәтижелер көрсетіледі • На экране только результаты")
