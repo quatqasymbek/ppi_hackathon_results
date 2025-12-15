@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 
@@ -12,8 +13,8 @@ DEFAULT_CRITERIA = [f"Criterion {i}" for i in range(1, 6)]
 MAX_PER_CRITERION = 2
 DATA_FILE = "scores.json"
 
-# ---- Storage helpers ----
-def _default_state():
+
+def default_state():
     return {
         "teams": DEFAULT_TEAMS,
         "criteria": DEFAULT_CRITERIA,
@@ -21,18 +22,20 @@ def _default_state():
         "updated_at": None,
     }
 
+
 def load_state():
     if not os.path.exists(DATA_FILE):
-        state = _default_state()
+        state = default_state()
         save_state(state)
         return state
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
-        state = _default_state()
+        state = default_state()
         save_state(state)
         return state
+
 
 def save_state(state: dict):
     state["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -41,7 +44,7 @@ def save_state(state: dict):
         json.dump(state, f, ensure_ascii=False, indent=2)
     os.replace(tmp, DATA_FILE)
 
-# ---- UI helpers ----
+
 def compute_table(state: dict) -> pd.DataFrame:
     teams = state["teams"]
     criteria = state["criteria"]
@@ -55,70 +58,101 @@ def compute_table(state: dict) -> pd.DataFrame:
             total += v
         row["Total"] = total
         rows.append(row)
+
     df = pd.DataFrame(rows)
-    # Tie-breakers: Total desc, then Criterion 5 desc (if exists), then alphabetical
-    if len(criteria) >= 5 and criteria[4] in df.columns:
-        df = df.sort_values(["Total", criteria[4], "Team"], ascending=[False, False, True])
+
+    # Tie-break: Total desc, then last criterion desc (if exists), then Team name
+    if len(criteria) >= 1 and criteria[-1] in df.columns:
+        df = df.sort_values(["Total", criteria[-1], "Team"], ascending=[False, False, True])
     else:
         df = df.sort_values(["Total", "Team"], ascending=[False, True])
+
     df.reset_index(drop=True, inplace=True)
     df.index = df.index + 1
     return df
 
-# ---- App ----
+
+# ---- APP ----
 state = load_state()
 
 st.sidebar.title("Mode")
-
 mode = st.sidebar.radio("Select mode", ["Public Screen", "Admin (Jury)"], index=0)
 
-admin_pin_required = True
 PIN = st.secrets.get("ADMIN_PIN", None)
-if PIN is None:
-    admin_pin_required = False  # if you don't set PIN, admin is open
+pin_required = PIN is not None
 
 if mode == "Admin (Jury)":
-    if admin_pin_required:
+    if pin_required:
         entered = st.sidebar.text_input("Admin PIN", type="password")
         if entered != PIN:
             st.warning("Enter the correct PIN to edit scores.")
             st.stop()
 
     st.title("🛠️ Admin — Enter scores")
-
-    with st.expander("Settings (optional)"):
-        teams_text = st.text_area("Teams (one per line)", "\n".join(state["teams"]))
-        criteria_text = st.text_area("Criteria (one per line)", "\n".join(state["criteria"]))
-
-        if st.button("Apply team/criteria changes"):
-            teams = [x.strip() for x in teams_text.splitlines() if x.strip()]
-            criteria = [x.strip() for x in criteria_text.splitlines() if x.strip()]
-            if len(teams) == 0 or len(criteria) == 0:
-                st.error("Teams and criteria cannot be empty.")
-            else:
-                # rebuild scores preserving intersection where possible
-                new_scores = {t: {c: 0 for c in criteria} for t in teams}
-                for t in teams:
-                    for c in criteria:
-                        if t in state["scores"] and c in state["scores"][t]:
-                            new_scores[t][c] = int(state["scores"][t][c])
-                state["teams"] = teams
-                state["criteria"] = criteria
-                state["scores"] = new_scores
-                save_state(state)
-                st.success("Updated configuration.")
-                st.rerun()
-
     st.caption(f"Max per criterion: {MAX_PER_CRITERION} • Updated: {state.get('updated_at')}")
 
     teams = state["teams"]
     criteria = state["criteria"]
 
     st.subheader("Enter scores (0–2)")
-    # One team per row, 5 criteria as number inputs
     for t in teams:
         with st.container(border=True):
-            cols = st.columns([2] + [1]*len(criteria))
+            cols = st.columns([2] + [1] * len(criteria))
             cols[0].markdown(f"### {t}")
+
             for i, c in enumerate(criteria):
-                key =
+                input_key = f"{t}__{c}"
+                default_val = int(state["scores"][t].get(c, 0))
+
+                val = cols[i + 1].number_input(
+                    c,
+                    min_value=0,
+                    max_value=MAX_PER_CRITERION,
+                    step=1,
+                    value=default_val,
+                    key=input_key,
+                )
+                state["scores"][t][c] = int(val)
+
+    c1, c2, c3 = st.columns([1, 1, 2])
+
+    if c1.button("💾 Save"):
+        save_state(state)
+        st.success("Saved.")
+        st.rerun()
+
+    if c2.button("↩ Reset all to 0"):
+        state = default_state()
+        save_state(state)
+        st.success("Reset done.")
+        st.rerun()
+
+    st.divider()
+    st.subheader("Preview (public view)")
+    df = compute_table(state)
+    st.dataframe(df, use_container_width=True)
+
+else:
+    st.title("🏆 Live Results")
+    st.caption(f"Last update: {state.get('updated_at')}")
+
+    refresh = st.sidebar.toggle("Auto-refresh (5s)", value=True)
+    if refresh:
+        st.markdown("<meta http-equiv='refresh' content='5'>", unsafe_allow_html=True)
+
+    df = compute_table(state)
+
+    winner = df.iloc[0]["Team"] if len(df) else "—"
+    st.metric("Current winner", winner)
+
+    st.subheader("Leaderboard")
+    st.dataframe(df[["Team", "Total"]], use_container_width=True, height=350)
+
+    st.subheader("Totals by team")
+    st.bar_chart(df.set_index("Team")["Total"])
+
+    st.subheader("Criteria breakdown")
+    criteria_cols = [c for c in state["criteria"] if c in df.columns]
+    st.bar_chart(df.set_index("Team")[criteria_cols])
+
+    st.caption("Input is hidden on this screen. Only results are shown.")
