@@ -291,36 +291,36 @@ else:
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
-    # PODIUM (no cups in titles)
-    render_html("<hr class='hr'>")
-    bi_h2("Жеңімпаздар", "Победители")
+    ## PODIUM (no cups in titles)
+    #render_html("<hr class='hr'>")
+    #bi_h2("Жеңімпаздар", "Победители")
 
-    top3 = df.head(3)
-    first = top3.iloc[0] if len(top3) > 0 else None
-    second = top3.iloc[1] if len(top3) > 1 else None
-    third = top3.iloc[2] if len(top3) > 2 else None
+    #top3 = df.head(3)
+    #first = top3.iloc[0] if len(top3) > 0 else None
+    #second = top3.iloc[1] if len(top3) > 1 else None
+    #third = top3.iloc[2] if len(top3) > 2 else None
 
-    podium_html = "<div class='podium'>"
-    podium_html += (
-        f"<div class='pcard'><div class='place'><span class='emoji'>🥈</span>2-орын / 2 место</div>"
-        f"<div class='team'>{second['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(second['Total'])}</b></div></div>"
-        if second is not None
-        else "<div class='pcard'><div class='place'>🥈 2-орын / 2 место</div><div class='team'>—</div></div>"
-    )
-    podium_html += (
-        f"<div class='pcard center'><div class='place'><span class='emoji'>🥇</span>1-орын / 1 место</div>"
-        f"<div class='team'>{first['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div></div>"
-        if first is not None
-        else "<div class='pcard center'><div class='place'>🥇 1-орын / 1 место</div><div class='team'>—</div></div>"
-    )
-    podium_html += (
-        f"<div class='pcard'><div class='place'><span class='emoji'>🥉</span>3-орын / 3 место</div>"
-        f"<div class='team'>{third['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(third['Total'])}</b></div></div>"
-        if third is not None
-        else "<div class='pcard'><div class='place'>🥉 3-орын / 3 место</div><div class='team'>—</div></div>"
-    )
-    podium_html += "</div>"
-    render_html(podium_html)
+    #podium_html = "<div class='podium'>"
+    #podium_html += (
+     #   f"<div class='pcard'><div class='place'><span class='emoji'>🥈</span>2-орын / 2 место</div>"
+     #   f"<div class='team'>{second['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(second['Total'])}</b></div></div>"
+     #   if second is not None
+     #   else "<div class='pcard'><div class='place'>🥈 2-орын / 2 место</div><div class='team'>—</div></div>"
+    #)
+    #podium_html += (
+     #   f"<div class='pcard center'><div class='place'><span class='emoji'>🥇</span>1-орын / 1 место</div>"
+     #   f"<div class='team'>{first['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div></div>"
+     #   if first is not None
+     #   else "<div class='pcard center'><div class='place'>🥇 1-орын / 1 место</div><div class='team'>—</div></div>"
+    #)
+    #podium_html += (
+    #    f"<div class='pcard'><div class='place'><span class='emoji'>🥉</span>3-орын / 3 место</div>"
+    #    f"<div class='team'>{third['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(third['Total'])}</b></div></div>"
+    #    if third is not None
+    #    else "<div class='pcard'><div class='place'>🥉 3-орын / 3 место</div><div class='team'>—</div></div>"
+    #)
+    #podium_html += "</div>"
+    #render_html(podium_html)
 
     # CRITERIA AVERAGES
     render_html("<hr class='hr'>")
