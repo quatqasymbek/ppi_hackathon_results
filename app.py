@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from io import BytesIO
 from math import pi
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -22,44 +23,24 @@ PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
 
-# ---------------- HTML RENDER HELPER ----------------
+# ---------------- SAFE HTML RENDER ----------------
 def render_html(html: str):
-    # Single place to ensure HTML is always rendered
+    # remove indentation that causes markdown code blocks
+    html = textwrap.dedent(html).strip()
     st.markdown(html, unsafe_allow_html=True)
 
 
 # ---------------- GLOBAL STYLE ----------------
-render_html(
-    """
+render_html("""
 <style>
-/* Give room for Streamlit top header; keep generous width */
-.block-container {
-  padding-top: 2.4rem;
-  padding-bottom: 2.2rem;
-  max-width: 1400px;
-}
-
+.block-container { padding-top: 2.4rem; padding-bottom: 2.2rem; max-width: 1400px; }
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
 .hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
 
 /* Podium */
-.podium {
-  display: grid;
-  grid-template-columns: 1fr 1.18fr 1fr;
-  gap: 14px;
-  margin-top: 12px;
-}
-.pcard {
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 18px;
-  padding: 14px 16px;
-  background: rgba(255,255,255,0.03);
-}
-.pcard.center {
-  transform: translateY(-8px);
-  box-shadow: 0 14px 30px rgba(0,0,0,0.20);
-  background: rgba(255,255,255,0.04);
-}
+.podium { display: grid; grid-template-columns: 1fr 1.18fr 1fr; gap: 14px; margin-top: 12px; }
+.pcard { border: 1px solid rgba(255,255,255,0.10); border-radius: 18px; padding: 14px 16px; background: rgba(255,255,255,0.03); }
+.pcard.center { transform: translateY(-8px); box-shadow: 0 14px 30px rgba(0,0,0,0.20); background: rgba(255,255,255,0.04); }
 .pcard .place { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 6px; }
 .pcard .team { font-size: 1.35rem; font-weight: 900; line-height: 1.1; }
 .pcard .score { margin-top: 8px; font-size: 0.96rem; color: #9aa0a6; }
@@ -67,59 +48,36 @@ render_html(
 
 /* Leaderboard list */
 .lb { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.lbrow {
-  display: grid;
-  grid-template-columns: 64px 1fr 110px;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 16px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.03);
-}
+.lbrow { display: grid; grid-template-columns: 64px 1fr 110px; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 12px 14px; background: rgba(255,255,255,0.03); }
 .lbrow .rank { font-weight: 950; font-size: 1.1rem; opacity: 0.95; }
 .lbrow .team { font-weight: 850; font-size: 1.05rem; line-height: 1.15; }
 .lbrow .score { text-align: right; font-weight: 950; font-size: 1.15rem; }
 .lbrow.top1 { background: rgba(34,197,94,0.12); }
 .lbrow.top2 { background: rgba(59,130,246,0.12); }
 .lbrow.top3 { background: rgba(245,158,11,0.12); }
-.badchip {
-  display:inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04);
-  font-size: 0.85rem;
-  color: #9aa0a6;
-  margin-left: 10px;
-}
+.badchip { display:inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); font-size: 0.85rem; color: #9aa0a6; margin-left: 10px; }
 
-/* Make matplotlib charts a bit tighter */
 canvas { border-radius: 14px; }
 </style>
-"""
-)
+""")
+
 
 # ---------------- BILINGUAL HELPERS ----------------
 def bi_h1(kk: str, ru: str):
-    render_html(
-        f"""
+    render_html(f"""
 <div style="line-height:1.1">
   <div style="font-size:2.1rem;font-weight:950;margin:0">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
-"""
-    )
+""")
 
 def bi_h2(kk: str, ru: str):
-    render_html(
-        f"""
+    render_html(f"""
 <div style="line-height:1.15;margin-top:0.2rem">
   <div style="font-size:1.25rem;font-weight:900;margin:0">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
-"""
-    )
+""")
 
 def caption_bi(kk: str, ru: str):
     render_html(f"<div class='small-muted'>{kk} • {ru}</div>")
@@ -182,9 +140,7 @@ def compute_table(state: dict) -> pd.DataFrame:
     return df
 
 def criterion_averages(df: pd.DataFrame, criteria: list[str]) -> pd.DataFrame:
-    out = pd.DataFrame(
-        {"Criterion": criteria, "Average": [float(df[c].mean()) for c in criteria]}
-    )
+    out = pd.DataFrame({"Criterion": criteria, "Average": [float(df[c].mean()) for c in criteria]})
     return out.sort_values("Average", ascending=False).reset_index(drop=True)
 
 
@@ -218,15 +174,7 @@ def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
     ax.fill(angles, team, alpha=0.12)
 
     ax.set_title(team_name, fontsize=12, fontweight="bold", pad=26)
-    ax.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.10),
-        ncol=2,
-        frameon=False,
-        fontsize=9,
-        title="0 — min • 2 — max",
-        title_fontsize=9,
-    )
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.10), ncol=2, frameon=False, fontsize=9)
     fig.tight_layout()
     return fig
 
@@ -244,13 +192,9 @@ def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
 # ---------------- APP ----------------
 state = load_state()
 
-# Sidebar labels EXACTLY as you asked
+# Sidebar labels (as requested)
 st.sidebar.markdown("### Режим / Режим")
-mode = st.sidebar.radio(
-    " ",
-    ["Әділқазы / Жюри", "Экран / Экран"],
-    index=0,
-)
+mode = st.sidebar.radio(" ", ["Әділқазы / Жюри", "Экран / Экран"], index=0)
 
 # ---------------- ADMIN ----------------
 if mode.startswith("Әділқазы"):
@@ -322,12 +266,7 @@ if mode.startswith("Әділқазы"):
                 input_key = f"{t}__{c}"
                 default_val = int(state["scores"][t].get(c, 0))
                 val = cols[i + 1].number_input(
-                    c,
-                    min_value=0,
-                    max_value=MAX_PER_CRITERION,
-                    step=1,
-                    value=default_val,
-                    key=input_key,
+                    c, min_value=0, max_value=MAX_PER_CRITERION, step=1, value=default_val, key=input_key
                 )
                 state["scores"][t][c] = int(val)
 
@@ -339,11 +278,6 @@ if mode.startswith("Әділқазы"):
 
     if c2.button("👀 Экранды ашу / Open screen"):
         st.info("Сол жақтан Экран / Экран таңдаңыз • Выберите Экран / Экран слева")
-
-    render_html("<hr class='hr'>")
-    bi_h2("Алдын ала қарау", "Предпросмотр")
-    df_admin = compute_table(state)
-    st.dataframe(df_admin, use_container_width=True)
 
 # ---------------- PUBLIC / SCREEN ----------------
 else:
@@ -357,7 +291,7 @@ else:
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
-    # --- PODIUM (NO 🏆 in title) ---
+    # PODIUM (no cups in titles)
     render_html("<hr class='hr'>")
     bi_h2("Жеңімпаздар", "Победители")
 
@@ -367,47 +301,28 @@ else:
     third = top3.iloc[2] if len(top3) > 2 else None
 
     podium_html = "<div class='podium'>"
-
-    # 2nd
-    if second is not None:
-        podium_html += f"""
-        <div class="pcard">
-          <div class="place"><span class="emoji">🥈</span>2-орын / 2 место</div>
-          <div class="team">{second['Team']}</div>
-          <div class="score">Ұпай / Балл: <b>{int(second['Total'])}</b></div>
-        </div>
-        """
-    else:
-        podium_html += """<div class="pcard"><div class="place">🥈 2-орын / 2 место</div><div class="team">—</div></div>"""
-
-    # 1st
-    if first is not None:
-        podium_html += f"""
-        <div class="pcard center">
-          <div class="place"><span class="emoji">🥇</span>1-орын / 1 место</div>
-          <div class="team">{first['Team']}</div>
-          <div class="score">Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div>
-        </div>
-        """
-    else:
-        podium_html += """<div class="pcard center"><div class="place">🥇 1-орын / 1 место</div><div class="team">—</div></div>"""
-
-    # 3rd
-    if third is not None:
-        podium_html += f"""
-        <div class="pcard">
-          <div class="place"><span class="emoji">🥉</span>3-орын / 3 место</div>
-          <div class="team">{third['Team']}</div>
-          <div class="score">Ұпай / Балл: <b>{int(third['Total'])}</b></div>
-        </div>
-        """
-    else:
-        podium_html += """<div class="pcard"><div class="place">🥉 3-орын / 3 место</div><div class="team">—</div></div>"""
-
+    podium_html += (
+        f"<div class='pcard'><div class='place'><span class='emoji'>🥈</span>2-орын / 2 место</div>"
+        f"<div class='team'>{second['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(second['Total'])}</b></div></div>"
+        if second is not None
+        else "<div class='pcard'><div class='place'>🥈 2-орын / 2 место</div><div class='team'>—</div></div>"
+    )
+    podium_html += (
+        f"<div class='pcard center'><div class='place'><span class='emoji'>🥇</span>1-орын / 1 место</div>"
+        f"<div class='team'>{first['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div></div>"
+        if first is not None
+        else "<div class='pcard center'><div class='place'>🥇 1-орын / 1 место</div><div class='team'>—</div></div>"
+    )
+    podium_html += (
+        f"<div class='pcard'><div class='place'><span class='emoji'>🥉</span>3-орын / 3 место</div>"
+        f"<div class='team'>{third['Team']}</div><div class='score'>Ұпай / Балл: <b>{int(third['Total'])}</b></div></div>"
+        if third is not None
+        else "<div class='pcard'><div class='place'>🥉 3-орын / 3 место</div><div class='team'>—</div></div>"
+    )
     podium_html += "</div>"
     render_html(podium_html)
 
-    # --- CRITERIA AVERAGES ---
+    # CRITERIA AVERAGES
     render_html("<hr class='hr'>")
     bi_h2(
         "Критерийлер бойынша орташа балл (барлық командалар)",
@@ -428,16 +343,13 @@ else:
                 scale=alt.Scale(domain=[0, MAX_PER_CRITERION], range=["#F59E0B", "#22C55E"]),
                 legend=None,
             ),
-            tooltip=[
-                alt.Tooltip("Criterion:N", title="Критерий"),
-                alt.Tooltip("Average:Q", title="Орташа / Среднее"),
-            ],
+            tooltip=[alt.Tooltip("Criterion:N", title="Критерий"), alt.Tooltip("Average:Q", title="Орташа / Среднее")],
         )
         .properties(height=290)
     )
     st.altair_chart(chart, use_container_width=True)
 
-    # --- RADAR ---
+    # RADAR
     render_html("<hr class='hr'>")
     bi_h2(
         "Командалардың профилі (радар диаграмма, шкала 0–2)",
@@ -460,48 +372,20 @@ else:
             fig = plot_radar_team_vs_avg(team, team_vals, avg_vals, criteria, max_val=MAX_PER_CRITERION)
             cols[j].pyplot(fig, clear_figure=True)
 
-    # --- LEADERBOARD ---
+    # LEADERBOARD
     render_html("<hr class='hr'>")
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     rows_html = "<div class='lb'>"
-
     for i, row in df.reset_index(drop=True).iterrows():
         rank = i + 1
         team = row["Team"]
         total = int(row["Total"])
-
         badge = f"{rank}-орын / {rank} место"
         left = medals.get(rank, f"#{rank}")
-
         cls = "lbrow"
-        if rank == 1:
-            cls += " top1"
-        elif rank == 2:
-            cls += " top2"
-        elif rank == 3:
-            cls += " top3"
-
-        rows_html += f"""
-        <div class="{cls}">
-          <div class="rank">{left}</div>
-          <div class="team">{team}<span class="badchip">{badge}</span></div>
-          <div class="score">{total}</div>
-        </div>
-        """
-
-    rows_html += "</div>"
-    render_html(rows_html)
-
-    # --- DOWNLOAD EXCEL ---
-    excel_bytes = to_excel_bytes(df.copy(), updated_at)
-    filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
-
-    st.download_button(
-        label="⬇️ Нәтижені Excel ретінде жүктеу / Скачать результаты в Excel",
-        data=excel_bytes,
-        file_name=filename,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
-    )
+        if rank == 1: cls += " top1"
+        elif rank == 2: cls += " top2"
+        elif rank == 3: cls += " top3"
+        rows_html += f"<div class='{cls}'><div class='rank'>{left}</div><div class=_
