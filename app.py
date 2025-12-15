@@ -2,18 +2,38 @@ import json
 import os
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Live Jury Scores", layout="wide")
+st.set_page_config(page_title="Jury Scores", layout="wide")
 
-# ---- CONFIG ----
+# ---------------- CONFIG ----------------
 DEFAULT_TEAMS = [f"Team {i}" for i in range(1, 8)]
 DEFAULT_CRITERIA = [f"Criterion {i}" for i in range(1, 6)]
 MAX_PER_CRITERION = 2
 DATA_FILE = "scores.json"
 
+PIN = st.secrets.get("ADMIN_PIN", None)  # set in Streamlit Secrets
+PIN_REQUIRED = PIN is not None
 
+
+# ---------------- BILINGUAL UI HELPERS ----------------
+def bi(kk: str, ru: str) -> str:
+    # Kazakh first, Russian below (subtle)
+    return f"<div style='line-height:1.2'><div><b>{kk}</b></div><div style='color:#8a8a8a'>{ru}</div></div>"
+
+
+def bi_h1(kk: str, ru: str):
+    st.markdown(f"<h2 style='margin-bottom:0.2rem'>{kk}</h2><div style='color:#8a8a8a'>{ru}</div>", unsafe_allow_html=True)
+
+
+def bi_caption(kk: str, ru: str):
+    st.markdown(f"<div style='color:#8a8a8a'>{kk} • {ru}</div>", unsafe_allow_html=True)
+
+
+# ---------------- STORAGE ----------------
 def default_state():
     return {
         "teams": DEFAULT_TEAMS,
@@ -45,6 +65,7 @@ def save_state(state: dict):
     os.replace(tmp, DATA_FILE)
 
 
+# ---------------- COMPUTATION ----------------
 def compute_table(state: dict) -> pd.DataFrame:
     teams = state["teams"]
     criteria = state["criteria"]
@@ -61,7 +82,7 @@ def compute_table(state: dict) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
 
-    # Tie-break: Total desc, then last criterion desc (if exists), then Team name
+    # Tie-break: Total desc, then last criterion desc, then Team name
     if len(criteria) >= 1 and criteria[-1] in df.columns:
         df = df.sort_values(["Total", criteria[-1], "Team"], ascending=[False, False, True])
     else:
@@ -72,87 +93,214 @@ def compute_table(state: dict) -> pd.DataFrame:
     return df
 
 
-# ---- APP ----
+def criterion_averages(df: pd.DataFrame, criteria: list[str]) -> pd.DataFrame:
+    # Average score for each criterion across teams (trend view)
+    av = {c: float(df[c].mean()) for c in criteria}
+    out = pd.DataFrame({"Criterion": list(av.keys()), "Average": list(av.values())})
+    out = out.sort_values("Average", ascending=False).reset_index(drop=True)
+    return out
+
+
+# ---------------- PLOTS ----------------
+def plot_radar_for_team(team_name: str, values: list[int], criteria: list[str], max_val: int = 2):
+    # Polar radar chart (matplotlib)
+    n = len(criteria)
+    angles = np.linspace(0, 2*np.pi, n, endpoint=False).tolist()
+    values = values + values[:1]
+    angles = angles + angles[:1]
+
+    fig = plt.figure(figsize=(3.2, 3.2))
+    ax = plt.subplot(111, polar=True)
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(criteria, fontsize=8)
+
+    ax.set_ylim(0, max_val)
+    ax.set_yticks([0, 1, 2])
+    ax.set_yticklabels(["0", "1", "2"], fontsize=8)
+
+    ax.plot(angles, values, linewidth=2)
+    ax.fill(angles, values, alpha=0.15)
+
+    ax.set_title(team_name, fontsize=11, pad=12)
+    fig.tight_layout()
+    return fig
+
+
+# ---------------- APP ----------------
 state = load_state()
 
-st.sidebar.title("Mode")
-mode = st.sidebar.radio("Select mode", ["Public Screen", "Admin (Jury)"], index=0)
+st.sidebar.markdown("### Mode / Режим")
+# Default = Admin first
+mode = st.sidebar.radio(
+    " ",
+    ["Admin (Jury) / Әділқазы", "Public Screen / Экран"],
+    index=0
+)
 
-PIN = st.secrets.get("ADMIN_PIN", None)
-pin_required = PIN is not None
-
-if mode == "Admin (Jury)":
-    if pin_required:
-        entered = st.sidebar.text_input("Admin PIN", type="password")
+if mode.startswith("Admin"):
+    if PIN_REQUIRED:
+        entered = st.sidebar.text_input("PIN", type="password")
         if entered != PIN:
-            st.warning("Enter the correct PIN to edit scores.")
+            st.warning("PIN енгізіңіз / Введите PIN")
             st.stop()
 
-    st.title("🛠️ Admin — Enter scores")
-    st.caption(f"Max per criterion: {MAX_PER_CRITERION} • Updated: {state.get('updated_at')}")
+    bi_h1("Әділқазы панелі", "Панель жюри")
+    bi_caption(
+        f"Жаңартылды: {state.get('updated_at')}",
+        f"Обновлено: {state.get('updated_at')}"
+    )
+
+    # Settings: editable teams & criteria
+    st.markdown("---")
+    st.markdown(bi("Атауларды баптау", "Настройка названий"), unsafe_allow_html=True)
+
+    with st.expander("✏️ " + "Командалар және критерийлер / Команды и критерии"):
+        teams_text = st.text_area(
+            "Командалар (әр жолға бір команда) / Команды (по одной в строке)",
+            "\n".join(state["teams"]),
+            height=160
+        )
+        criteria_text = st.text_area(
+            "Критерийлер (әр жолға бір критерий) / Критерии (по одному в строке)",
+            "\n".join(state["criteria"]),
+            height=160
+        )
+
+        if st.button("✅ Сақтау / Сохранить"):
+            teams = [x.strip() for x in teams_text.splitlines() if x.strip()]
+            criteria = [x.strip() for x in criteria_text.splitlines() if x.strip()]
+
+            if len(teams) != 7:
+                st.error("7 команда болуы керек / Должно быть 7 команд")
+                st.stop()
+            if len(criteria) != 5:
+                st.error("5 критерий болуы керек / Должно быть 5 критериев")
+                st.stop()
+
+            # preserve where possible
+            new_scores = {t: {c: 0 for c in criteria} for t in teams}
+            for t in teams:
+                for c in criteria:
+                    if t in state["scores"] and c in state["scores"][t]:
+                        new_scores[t][c] = int(state["scores"][t][c])
+
+            state["teams"] = teams
+            state["criteria"] = criteria
+            state["scores"] = new_scores
+            save_state(state)
+            st.success("Сақталды / Сохранено")
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown(bi("Бағаларды енгізу (0–2)", "Ввод баллов (0–2)"), unsafe_allow_html=True)
 
     teams = state["teams"]
     criteria = state["criteria"]
 
-    st.subheader("Enter scores (0–2)")
+    # Score input grid: team rows
     for t in teams:
         with st.container(border=True):
-            cols = st.columns([2] + [1] * len(criteria))
+            cols = st.columns([2] + [1]*len(criteria))
             cols[0].markdown(f"### {t}")
 
             for i, c in enumerate(criteria):
                 input_key = f"{t}__{c}"
                 default_val = int(state["scores"][t].get(c, 0))
-
-                val = cols[i + 1].number_input(
+                val = cols[i+1].number_input(
                     c,
                     min_value=0,
                     max_value=MAX_PER_CRITERION,
                     step=1,
                     value=default_val,
-                    key=input_key,
+                    key=input_key
                 )
                 state["scores"][t][c] = int(val)
 
     c1, c2, c3 = st.columns([1, 1, 2])
-
-    if c1.button("💾 Save"):
+    if c1.button("💾 Сақтау / Save"):
         save_state(state)
-        st.success("Saved.")
+        st.success("Сақталды / Saved")
         st.rerun()
 
-    if c2.button("↩ Reset all to 0"):
+    if c2.button("↩ 0-ге қайтару / Reset to 0"):
         state = default_state()
         save_state(state)
-        st.success("Reset done.")
+        st.success("Қайтарылды / Reset done")
         st.rerun()
 
-    st.divider()
-    st.subheader("Preview (public view)")
+    st.markdown("---")
+    st.markdown(bi("Алдын ала қарау (экрандағы көрініс)", "Предпросмотр (как на экране)"), unsafe_allow_html=True)
     df = compute_table(state)
     st.dataframe(df, use_container_width=True)
 
 else:
-    st.title("🏆 Live Results")
-    st.caption(f"Last update: {state.get('updated_at')}")
+    bi_h1("Нәтижелер (тікелей)", "Результаты (live)")
+    bi_caption(
+        f"Соңғы жаңарту: {state.get('updated_at')}",
+        f"Последнее обновление: {state.get('updated_at')}"
+    )
 
     df = compute_table(state)
+    criteria = state["criteria"]
 
-    winner = df.iloc[0]["Team"] if len(df) else "—"
-    st.metric("Current winner", winner)
+    # 1) Criterion averages across teams
+    st.markdown("---")
+    st.markdown(bi(
+        "Критерийлер бойынша орташа балл (барлық командалар)",
+        "Средний балл по критериям (по всем командам)"
+    ), unsafe_allow_html=True)
 
-    st.subheader("Leaderboard")
-    st.dataframe(df[["Team", "Total"]], use_container_width=True, height=350)
+    av = criterion_averages(df, criteria)
+    av_chart = av.set_index("Criterion")[["Average"]]
+    st.bar_chart(av_chart)
 
-    st.subheader("Totals by team")
+    # 2) Radar plots side by side
+    st.markdown("---")
+    st.markdown(bi(
+        "Командалардың профилі (радар диаграмма, шкала 0–2)",
+        "Профиль команд (радар-диаграмма, шкала 0–2)"
+    ), unsafe_allow_html=True)
+
+    teams = list(df["Team"].values)
+    # show 3 per row
+    per_row = 3
+    for start in range(0, len(teams), per_row):
+        cols = st.columns(per_row)
+        for j in range(per_row):
+            idx = start + j
+            if idx >= len(teams):
+                break
+            team = teams[idx]
+            vals = [int(df.loc[df["Team"] == team, c].values[0]) for c in criteria]
+            fig = plot_radar_for_team(team, vals, criteria, max_val=MAX_PER_CRITERION)
+            cols[j].pyplot(fig, clear_figure=True)
+
+    # 3) Total points descending
+    st.markdown("---")
+    st.markdown(bi(
+        "Жалпы ұпай (кему ретімен)",
+        "Общий балл (по убыванию)"
+    ), unsafe_allow_html=True)
+
+    st.dataframe(df[["Team", "Total"]], use_container_width=True, height=320)
     st.bar_chart(df.set_index("Team")["Total"])
 
-    st.subheader("Criteria breakdown")
-    criteria_cols = [c for c in state["criteria"] if c in df.columns]
-    st.bar_chart(df.set_index("Team")[criteria_cols])
+    # 4) Top-3 winners + congratulations
+    st.markdown("---")
+    st.markdown(bi(
+        "Жеңімпаздар 🏆",
+        "Победители 🏆"
+    ), unsafe_allow_html=True)
 
-    st.caption("Input is hidden on this screen. Only results are shown.")
-    criteria_cols = [c for c in state["criteria"] if c in df.columns]
-    st.bar_chart(df.set_index("Team")[criteria_cols])
+    top3 = df.head(3)
+    if len(top3) >= 1:
+        st.success(f"🥇 1-орын / 1 место: **{top3.iloc[0]['Team']}** — Құттықтаймыз! / Поздравляем!")
+    if len(top3) >= 2:
+        st.info(f"🥈 2-орын / 2 место: **{top3.iloc[1]['Team']}** — Құттықтаймыз! / Поздравляем!")
+    if len(top3) >= 3:
+        st.warning(f"🥉 3-орын / 3 место: **{top3.iloc[2]['Team']}** — Құттықтаймыз! / Поздравляем!")
 
-    st.caption("Input is hidden on this screen. Only results are shown.")
+    st.caption("Экранда тек нәтиже көрсетіледі • На экране только результаты")
