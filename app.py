@@ -18,7 +18,14 @@ if auto:
 @st.cache_resource
 def gsheet_client():
     scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
+    
+    # 🌟 FIX: Create a copy of the secrets dictionary to modify it, 
+    # and use .strip() on the private_key to remove any hidden whitespace 
+    # that causes binascii.Error during base64 decoding.
+    sa_info = st.secrets["gcp_service_account"].copy()
+    sa_info["private_key"] = sa_info["private_key"].strip() 
+    
+    creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
     return gspread.authorize(creds)
 
 def load_raw():
@@ -106,4 +113,3 @@ st.bar_chart(team.set_index("team")[["c1","c2","c3","c4","c5"]])
 
 with st.expander("Audit: normalized votes"):
     st.dataframe(df.sort_values(["team","timestamp"]), use_container_width=True)
-
