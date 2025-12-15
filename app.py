@@ -10,7 +10,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import altair as alt
 
-st.set_page_config(page_title="Hackathon Scores", layout="wide")
+st.set_page_config(page_title="Hackathon Results", layout="wide")
 
 # ---------------- CONFIG ----------------
 DEFAULT_TEAMS = [f"Team {i}" for i in range(1, 8)]
@@ -21,33 +21,27 @@ DATA_FILE = "scores.json"
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
-
-# ---------------- STYLE ----------------
+# ---------------- GLOBAL STYLE ----------------
 st.markdown(
     """
 <style>
-.block-container { padding-top: 1.0rem; padding-bottom: 2.0rem; max-width: 1200px; }
-h1, h2, h3 { margin-bottom: 0.35rem; }
-.small-muted { color: #8a8a8a; font-size: 0.9rem; }
-.hr { height: 1px; background: rgba(255,255,255,0.08); border: none; margin: 1rem 0; }
-
-.card {
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 18px;
-  padding: 14px 16px;
-  background: rgba(255,255,255,0.03);
+/* Give room for Streamlit top header; remove max-width so title isn't cut */
+.block-container {
+  padding-top: 2.4rem;
+  padding-bottom: 2.2rem;
+  max-width: 1400px;
 }
-.card-title { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 4px; }
-.card-value { font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
-.card-sub { margin-top: 6px; color: #9aa0a6; font-size: 0.95rem; }
+
+/* Typography */
+.small-muted { color: #8a8a8a; font-size: 0.92rem; }
+.hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
 
 /* Podium */
 .podium {
   display: grid;
-  grid-template-columns: 1fr 1.15fr 1fr;
+  grid-template-columns: 1fr 1.18fr 1fr;
   gap: 14px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: 12px;
 }
 .pcard {
   border: 1px solid rgba(255,255,255,0.10);
@@ -55,14 +49,47 @@ h1, h2, h3 { margin-bottom: 0.35rem; }
   padding: 14px 16px;
   background: rgba(255,255,255,0.03);
 }
+.pcard.center {
+  transform: translateY(-8px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.20);
+  background: rgba(255,255,255,0.04);
+}
 .pcard .place { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 6px; }
 .pcard .team { font-size: 1.35rem; font-weight: 900; line-height: 1.1; }
-.pcard .score { margin-top: 8px; font-size: 0.95rem; color: #9aa0a6; }
-.pcard.center { transform: translateY(-10px); box-shadow: 0 10px 26px rgba(0,0,0,0.22); }
-.pcard .emoji { font-size: 1.2rem; margin-right: 6px; }
+.pcard .score { margin-top: 8px; font-size: 0.96rem; color: #9aa0a6; }
+.pcard .emoji { font-size: 1.2rem; margin-right: 8px; }
 
-/* Scoreboard table styling */
-.dataframe-container { border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+/* Leaderboard list */
+.lb { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.lbrow {
+  display: grid;
+  grid-template-columns: 64px 1fr 110px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+}
+.lbrow .rank { font-weight: 950; font-size: 1.1rem; opacity: 0.95; }
+.lbrow .team { font-weight: 850; font-size: 1.05rem; line-height: 1.15; }
+.lbrow .score { text-align: right; font-weight: 950; font-size: 1.15rem; }
+.lbrow.top1 { background: rgba(34,197,94,0.12); }
+.lbrow.top2 { background: rgba(59,130,246,0.12); }
+.lbrow.top3 { background: rgba(245,158,11,0.12); }
+.badchip {
+  display:inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  margin-left: 10px;
+}
+
+/* Make matplotlib charts a bit tighter */
+canvas { border-radius: 14px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -71,34 +98,28 @@ h1, h2, h3 { margin-bottom: 0.35rem; }
 # ---------------- BILINGUAL HELPERS ----------------
 def bi_h1(kk: str, ru: str):
     st.markdown(
-        f"<div style='line-height:1.1'>"
-        f"<div style='font-size:2.05rem;font-weight:900'>{kk}</div>"
-        f"<div class='small-muted'>{ru}</div>"
-        f"</div>",
+        f"""
+<div style="line-height:1.1">
+  <div style="font-size:2.1rem;font-weight:950;margin:0">{kk}</div>
+  <div class="small-muted">{ru}</div>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
 def bi_h2(kk: str, ru: str):
     st.markdown(
-        f"<div style='line-height:1.15;margin-top:0.3rem'>"
-        f"<div style='font-size:1.25rem;font-weight:800'>{kk}</div>"
-        f"<div class='small-muted'>{ru}</div>"
-        f"</div>",
+        f"""
+<div style="line-height:1.15;margin-top:0.2rem">
+  <div style="font-size:1.25rem;font-weight:900;margin:0">{kk}</div>
+  <div class="small-muted">{ru}</div>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
 def caption_bi(kk: str, ru: str):
     st.markdown(f"<div class='small-muted'>{kk} • {ru}</div>", unsafe_allow_html=True)
-
-def card(title_kk: str, title_ru: str, value: str, sub: str = ""):
-    st.markdown(
-        f"<div class='card'>"
-        f"<div class='card-title'>{title_kk} / {title_ru}</div>"
-        f"<div class='card-value'>{value}</div>"
-        f"{f"<div class='card-sub'>{sub}</div>" if sub else ""}"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
 
 # ---------------- STORAGE ----------------
 def default_state():
@@ -146,7 +167,7 @@ def compute_table(state: dict) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
 
-    # Tie-break: Total desc -> last criterion desc -> Team name
+    # tie-break: Total desc -> last criterion desc -> Team name
     if len(criteria) >= 1 and criteria[-1] in df.columns:
         df = df.sort_values(["Total", criteria[-1], "Team"], ascending=[False, False, True])
     else:
@@ -161,48 +182,9 @@ def criterion_averages(df: pd.DataFrame, criteria: list[str]) -> pd.DataFrame:
     )
     return out.sort_values("Average", ascending=False).reset_index(drop=True)
 
-def make_scoreboard(df: pd.DataFrame) -> pd.DataFrame:
-    # Clean scoreboard: #, 🏅, Team, Total
-    d = df[["Team", "Total"]].copy()
-    d.insert(0, "#", range(1, len(d) + 1))
-    medals = ["🥇", "🥈", "🥉"] + [""] * max(0, len(d) - 3)
-    d.insert(1, "🏅", medals)
-    return d
-
-def style_scoreboard(d: pd.DataFrame) -> "pd.io.formats.style.Styler":
-    def row_style(row):
-        r = row["#"]
-        if r == 1:
-            return ["font-weight: 800;"] * len(row)
-        if r == 2:
-            return ["font-weight: 700;"] * len(row)
-        if r == 3:
-            return ["font-weight: 700;"] * len(row)
-        return [""] * len(row)
-
-    sty = d.style.apply(row_style, axis=1)
-
-    # Soft highlight top 3
-    def highlight_top3(row):
-        r = row["#"]
-        if r == 1:
-            return ["background-color: rgba(34,197,94,0.10);"] * len(row)
-        if r == 2:
-            return ["background-color: rgba(59,130,246,0.10);"] * len(row)
-        if r == 3:
-            return ["background-color: rgba(245,158,11,0.10);"] * len(row)
-        return [""] * len(row)
-
-    sty = sty.apply(highlight_top3, axis=1)
-
-    # Column formatting
-    sty = sty.format({"Total": "{:.0f}"})
-    return sty
-
 # ---------------- RADAR ----------------
 def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
     n = len(criteria)
-
     angles = [i / float(n) * 2 * pi for i in range(n)]
     angles += angles[:1]
 
@@ -210,7 +192,6 @@ def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
     avg = list(avg_vals) + [avg_vals[0]]
 
     fig, ax = plt.subplots(figsize=(3.6, 3.6), subplot_kw=dict(polar=True))
-
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
 
@@ -224,16 +205,13 @@ def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
     ax.grid(alpha=0.25)
     ax.spines["polar"].set_alpha(0.25)
 
-    # Avg (dashed)
     ax.plot(angles, avg, linewidth=2, linestyle="dashed", alpha=0.9, label="Орташа / Среднее")
     ax.fill(angles, avg, alpha=0.06)
 
-    # Team
     ax.plot(angles, team, linewidth=2.2, alpha=0.95, label="Команда / Команда")
     ax.fill(angles, team, alpha=0.12)
 
     ax.set_title(team_name, fontsize=12, fontweight="bold", pad=26)
-
     ax.legend(
         loc="upper center",
         bbox_to_anchor=(0.5, -0.10),
@@ -243,18 +221,15 @@ def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
         title="0 — min • 2 — max",
         title_fontsize=9,
     )
-
     fig.tight_layout()
     return fig
 
 # ---------------- EXPORT ----------------
-def to_excel_bytes(df_full: pd.DataFrame, df_scoreboard: pd.DataFrame, updated_at: str) -> bytes:
+def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
     buf = BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        df_scoreboard.to_excel(writer, index=False, sheet_name="Scoreboard")
-        df_full.to_excel(writer, index=False, sheet_name="Full Scores")
-        meta = pd.DataFrame({"updated_at": [updated_at]})
-        meta.to_excel(writer, index=False, sheet_name="Meta")
+        df_full.to_excel(writer, index=False, sheet_name="Results")
+        pd.DataFrame({"updated_at": [updated_at]}).to_excel(writer, index=False, sheet_name="Meta")
     buf.seek(0)
     return buf.getvalue()
 
@@ -278,7 +253,6 @@ if mode.startswith("Admin"):
 
     bi_h1("Әділқазы панелі", "Панель жюри")
     caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
-
     st.markdown("<hr class='hr'>", unsafe_allow_html=True)
 
     bi_h2("Атауларды баптау", "Настройка названий")
@@ -362,7 +336,7 @@ if mode.startswith("Admin"):
     df_admin = compute_table(state)
     st.dataframe(df_admin, use_container_width=True)
 
-# ---------------- PUBLIC SCREEN ----------------
+# ---------------- PUBLIC ----------------
 else:
     bi_h1("Хакатон нәтижелері", "Результаты хакатона")
     caption_bi(
@@ -374,59 +348,57 @@ else:
     criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
-    # --- Podium (Top-3) ---
+    # --- PODIUM ---
     st.markdown("<hr class='hr'>", unsafe_allow_html=True)
     bi_h2("Жеңімпаздар 🏆", "Победители 🏆")
 
     top3 = df.head(3)
-
-    def _safe(i):
-        return top3.iloc[i] if len(top3) > i else None
-
-    first, second, third = _safe(0), _safe(1), _safe(2)
+    first = top3.iloc[0] if len(top3) > 0 else None
+    second = top3.iloc[1] if len(top3) > 1 else None
+    third = top3.iloc[2] if len(top3) > 2 else None
 
     podium_html = "<div class='podium'>"
 
     # 2nd
     if second is not None:
         podium_html += f"""
-        <div class='pcard'>
-          <div class='place'><span class='emoji'>🥈</span>2-орын / 2 место</div>
-          <div class='team'>{second['Team']}</div>
-          <div class='score'>Ұпай / Балл: <b>{int(second['Total'])}</b></div>
+        <div class="pcard">
+          <div class="place"><span class="emoji">🥈</span>2-орын / 2 место</div>
+          <div class="team">{second['Team']}</div>
+          <div class="score">Ұпай / Балл: <b>{int(second['Total'])}</b></div>
         </div>
         """
     else:
-        podium_html += "<div class='pcard'><div class='place'>🥈 2-орын / 2 место</div><div class='team'>—</div></div>"
+        podium_html += """<div class="pcard"><div class="place">🥈 2-орын / 2 место</div><div class="team">—</div></div>"""
 
     # 1st
     if first is not None:
         podium_html += f"""
-        <div class='pcard center'>
-          <div class='place'><span class='emoji'>🥇</span>1-орын / 1 место</div>
-          <div class='team'>{first['Team']}</div>
-          <div class='score'>Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div>
+        <div class="pcard center">
+          <div class="place"><span class="emoji">🥇</span>1-орын / 1 место</div>
+          <div class="team">{first['Team']}</div>
+          <div class="score">Ұпай / Балл: <b>{int(first['Total'])}</b> • Құттықтаймыз! / Поздравляем!</div>
         </div>
         """
     else:
-        podium_html += "<div class='pcard center'><div class='place'>🥇 1-орын / 1 место</div><div class='team'>—</div></div>"
+        podium_html += """<div class="pcard center"><div class="place">🥇 1-орын / 1 место</div><div class="team">—</div></div>"""
 
     # 3rd
     if third is not None:
         podium_html += f"""
-        <div class='pcard'>
-          <div class='place'><span class='emoji'>🥉</span>3-орын / 3 место</div>
-          <div class='team'>{third['Team']}</div>
-          <div class='score'>Ұпай / Балл: <b>{int(third['Total'])}</b></div>
+        <div class="pcard">
+          <div class="place"><span class="emoji">🥉</span>3-орын / 3 место</div>
+          <div class="team">{third['Team']}</div>
+          <div class="score">Ұпай / Балл: <b>{int(third['Total'])}</b></div>
         </div>
         """
     else:
-        podium_html += "<div class='pcard'><div class='place'>🥉 3-орын / 3 место</div><div class='team'>—</div></div>"
+        podium_html += """<div class="pcard"><div class="place">🥉 3-орын / 3 место</div><div class="team">—</div></div>"""
 
     podium_html += "</div>"
     st.markdown(podium_html, unsafe_allow_html=True)
 
-    # --- Criterion averages chart (gradient) ---
+    # --- CRITERIA AVERAGES (gradient orange->green) ---
     st.markdown("<hr class='hr'>", unsafe_allow_html=True)
     bi_h2(
         "Критерийлер бойынша орташа балл (барлық командалар)",
@@ -438,14 +410,10 @@ else:
 
     chart = (
         alt.Chart(av)
-        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+        .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
         .encode(
             x=alt.X("Criterion:N", sort=None, title=None, axis=alt.Axis(labelAngle=-30)),
-            y=alt.Y(
-                "Average:Q",
-                title="Орташа / Среднее",
-                scale=alt.Scale(domain=[0, MAX_PER_CRITERION]),
-            ),
+            y=alt.Y("Average:Q", title="Орташа / Среднее", scale=alt.Scale(domain=[0, MAX_PER_CRITERION])),
             color=alt.Color(
                 "Average:Q",
                 scale=alt.Scale(domain=[0, MAX_PER_CRITERION], range=["#F59E0B", "#22C55E"]),
@@ -456,11 +424,11 @@ else:
                 alt.Tooltip("Average:Q", title="Орташа / Среднее"),
             ],
         )
-        .properties(height=280)
+        .properties(height=290)
     )
     st.altair_chart(chart, use_container_width=True)
 
-    # --- Radar plots ---
+    # --- RADAR ---
     st.markdown("<hr class='hr'>", unsafe_allow_html=True)
     bi_h2(
         "Командалардың профилі (радар диаграмма, шкала 0–2)",
@@ -483,21 +451,42 @@ else:
             fig = plot_radar_team_vs_avg(team, team_vals, avg_vals, criteria, max_val=MAX_PER_CRITERION)
             cols[j].pyplot(fig, clear_figure=True)
 
-    # --- Scoreboard (table only) + Excel download ---
+    # --- MODERN LEADERBOARD (no ugly dataframe) + Excel download ---
     st.markdown("<hr class='hr'>", unsafe_allow_html=True)
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
 
-    scoreboard = make_scoreboard(df)
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    rows_html = "<div class='lb'>"
 
-    # Nice styled table
-    styled = style_scoreboard(scoreboard)
-    st.markdown("<div class='dataframe-container'>", unsafe_allow_html=True)
-    st.dataframe(styled, use_container_width=True, height=360)
-    st.markdown("</div>", unsafe_allow_html=True)
+    for i, row in df.reset_index(drop=True).iterrows():
+        rank = i + 1
+        team = row["Team"]
+        total = int(row["Total"])
 
-    # Excel export underneath
-    full_scores = df.copy()
-    excel_bytes = to_excel_bytes(full_scores, scoreboard, updated_at)
+        badge = f"{rank}-орын / {rank} место"
+        left = medals.get(rank, f"#{rank}")
+
+        cls = "lbrow"
+        if rank == 1:
+            cls += " top1"
+        elif rank == 2:
+            cls += " top2"
+        elif rank == 3:
+            cls += " top3"
+
+        rows_html += f"""
+        <div class="{cls}">
+          <div class="rank">{left}</div>
+          <div class="team">{team}<span class="badchip">{badge}</span></div>
+          <div class="score">{total}</div>
+        </div>
+        """
+
+    rows_html += "</div>"
+    st.markdown(rows_html, unsafe_allow_html=True)
+
+    # Download Excel under scoreboard
+    excel_bytes = to_excel_bytes(df.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
 
     st.download_button(
