@@ -11,7 +11,6 @@ from math import pi
 
 import pandas as pd
 import streamlit as st
-import altair as alt
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Hackathon Results", layout="wide")
@@ -23,8 +22,15 @@ DATA_FILE = "scores.json"
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
-# Logo (put the file next to app.py). Fallback path is for your current environment.
-LOGO_CANDIDATES = ["Логотип-рус.png", "/mnt/data/Логотип-рус.png"]
+# Put your event logo file next to app.py (recommended).
+# Add/rename candidates here to match your repository file name.
+LOGO_CANDIDATES = [
+    "event_logo.png",
+    "Логотип-рус.png",
+    "ChatGPT Image 19 дек. 2025 г., 19_51_39.png",
+    "/mnt/data/Логотип-рус.png",
+    "/mnt/data/ChatGPT Image 19 дек. 2025 г., 19_51_39.png",
+]
 
 # Бағыттар (KK main) + Russian subtitle mapping
 DIRECTIONS = [
@@ -128,7 +134,7 @@ def render_html(html: str):
 # ---------------- GLOBAL STYLE ----------------
 render_html("""
 <style>
-.block-container { padding-top: 2.2rem; padding-bottom: 2.0rem; max-width: 1400px; }
+.block-container { padding-top: 1.4rem; padding-bottom: 2.0rem; max-width: 1400px; }
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
 .hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
 
@@ -152,6 +158,9 @@ render_html("""
 .drawitem.picked { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.07); }
 .drawbadge { display:inline-block; font-size: 0.82rem; color:#9aa0a6; border:1px solid rgba(255,255,255,0.10); padding:2px 10px; border-radius:999px; margin-left: 10px; }
 .commitbox { border:1px dashed rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+
+.logo-wrap { display:flex; justify-content:center; align-items:center; margin: 0.2rem 0 1.2rem 0; }
+.logo-wrap img { max-width: 780px; width: 100%; height: auto; }
 </style>
 """)
 
@@ -181,14 +190,22 @@ def direction_bi_html(direction_kk: str) -> str:
     return f"<div class='team'><div class='kk'>{direction_kk}</div><div class='ru'>{ru}</div></div>"
 
 
-# ---------------- LOGO (SIDEBAR) ----------------
-def show_sidebar_logo():
+# ---------------- LOGO (ALWAYS VISIBLE) ----------------
+def find_logo_path() -> str | None:
     for p in LOGO_CANDIDATES:
         if os.path.exists(p):
-            st.sidebar.image(p, use_container_width=True)
-            return
+            return p
+    return None
 
-show_sidebar_logo()
+def show_logo_sidebar_and_main():
+    p = find_logo_path()
+    if not p:
+        return
+    st.sidebar.image(p, use_container_width=True)
+    # main page logo (shows even before PIN because it renders before gating)
+    st.image(p, use_container_width=True)
+
+show_logo_sidebar_and_main()
 
 
 # ---------------- AUTH ----------------
@@ -240,7 +257,6 @@ def load_state():
         save_state(s)
         return s
 
-    # Normalize scores
     scores_in = s.get("scores")
     if not isinstance(scores_in, dict):
         scores_in = {}
@@ -262,7 +278,6 @@ def load_state():
 
     s["scores"] = scores_out
 
-    # Normalize presentation order
     po = s.get("presentation_order")
     if not isinstance(po, list):
         po = list(DIRECTIONS)
@@ -336,7 +351,7 @@ def to_excel_bytes(df_totals: pd.DataFrame, df_details: pd.DataFrame, updated_at
     return buf.getvalue()
 
 
-# ---------------- RANDOMIZER (FAIR DRAW + VISUAL) ----------------
+# ---------------- RANDOMIZER (LIST ONLY) ----------------
 def sha256_hex(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
@@ -369,41 +384,7 @@ def draw_html(picked: list[str], remaining: list[str], highlight_idx: int | None
 </div>
 """
 
-def plot_wheel(remaining: list[str], highlight_idx: int | None = None, rotation_deg: float = 0.0):
-    n = len(remaining)
-    fig = plt.figure(figsize=(4.2, 4.2))
-    ax = fig.add_subplot(111)
-    ax.set_aspect("equal")
-
-    sizes = [1] * n
-    explode = [0.0] * n
-    if highlight_idx is not None and 0 <= highlight_idx < n:
-        explode[highlight_idx] = 0.08
-
-    # Wedge labels as numbers (names are shown in the list on the right)
-    labels = [str(i + 1) for i in range(n)]
-
-    ax.pie(
-        sizes,
-        labels=labels,
-        startangle=90 + rotation_deg,
-        counterclock=False,
-        explode=explode,
-        wedgeprops=dict(linewidth=1, edgecolor="white"),
-        textprops=dict(fontsize=11, fontweight="bold"),
-    )
-
-    # Pointer line at the top (12 o'clock)
-    ax.plot([0, 0], [0, 1.15], linewidth=3)
-    ax.set_title("Жеребе визуализациясы\nЖеребьёвка (визуализация)", fontsize=11, fontweight="bold")
-    fig.tight_layout()
-    return fig
-
-def run_fair_draw_animation(directions: list[str]) -> tuple[list[str], dict]:
-    seed = secrets.token_hex(16)
-    commit = sha256_hex(seed)
-    method = "random.Random(int(seed,16)).shuffle()"
-
+def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[str]:
     rng = random.Random(int(seed, 16))
     final_order = list(directions)
     rng.shuffle(final_order)
@@ -411,28 +392,23 @@ def run_fair_draw_animation(directions: list[str]) -> tuple[list[str], dict]:
     remaining = list(directions)
     picked: list[str] = []
 
-    ph_wheel = st.empty()
     ph_list = st.empty()
     prog = st.progress(0.0)
+
+    rng_visual = random.Random()  # visual-only highlights
 
     for k, chosen in enumerate(final_order, start=1):
         chosen_idx = remaining.index(chosen)
 
-        # Spin animation (visual only, result already fixed by seed)
-        spins = 36
-        for t in range(spins):
-            hi = random.randrange(len(remaining))
-            rot = (t * (360 / spins)) + random.uniform(-6, 6)
-            with ph_wheel:
-                st.pyplot(plot_wheel(remaining, highlight_idx=hi, rotation_deg=rot), clear_figure=True)
+        # highlight flicker (visual only; outcome already fixed by seed)
+        for _ in range(20):
+            hi = rng_visual.randrange(len(remaining))
             with ph_list:
                 render_html(draw_html(picked, remaining, hi))
-            time.sleep(0.04)
+            time.sleep(0.05)
 
-        # Land clearly on the chosen item
-        for _ in range(8):
-            with ph_wheel:
-                st.pyplot(plot_wheel(remaining, highlight_idx=chosen_idx, rotation_deg=0), clear_figure=True)
+        # land on the chosen item clearly
+        for _ in range(7):
             with ph_list:
                 render_html(draw_html(picked, remaining, chosen_idx))
             time.sleep(0.06)
@@ -444,13 +420,7 @@ def run_fair_draw_animation(directions: list[str]) -> tuple[list[str], dict]:
         with ph_list:
             render_html(draw_html(picked, remaining, None))
 
-    draw_meta = {
-        "commit": commit,
-        "seed": seed,
-        "method": method,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    return final_order, draw_meta
+    return final_order
 
 
 # ---------------- RADAR ----------------
@@ -459,29 +429,33 @@ def wrap_label(s: str, width: int = 18) -> str:
 
 def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
     crits = CRITERIA_BI[direction_kk]
-    labels = [f"{i+1}. {wrap_label(c['kk'], 18)}\n{wrap_label(c['ru'], 18)}" for i, c in enumerate(crits)]
+    labels = [f"{i+1}. {wrap_label(c['kk'], 20)}\n{wrap_label(c['ru'], 20)}" for i, c in enumerate(crits)]
 
     n = len(labels)
     angles = [i / float(n) * 2 * pi for i in range(n)]
     angles += angles[:1]
     vals = list(values) + [values[0]]
 
-    fig, ax = plt.subplots(figsize=(3.8, 3.8), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(5.6, 5.6), subplot_kw=dict(polar=True))
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_xticklabels(labels, fontsize=8)
 
     ax.set_ylim(0, max_val)
     ax.set_yticks(list(range(0, max_val + 1)))
-    ax.set_yticklabels([str(i) for i in range(0, max_val + 1)], fontsize=8)
+    ax.set_yticklabels([str(i) for i in range(0, max_val + 1)], fontsize=9)
 
     ax.grid(alpha=0.25)
     ax.spines["polar"].set_alpha(0.25)
 
-    ax.plot(angles, vals, linewidth=2.2, alpha=0.95)
+    ax.plot(angles, vals, linewidth=2.6, alpha=0.95)
     ax.fill(angles, vals, alpha=0.12)
+
+    # IMPORTANT: title inside the figure so it shows on "enlarge"
+    title_ru = DIRECTION_RU.get(direction_kk, "")
+    ax.set_title(f"{direction_kk}\n{title_ru}", fontsize=13, fontweight="bold", pad=26)
 
     fig.tight_layout()
     return fig
@@ -525,29 +499,33 @@ if mode == "Презентациялар кезектілігі":
     c2.caption("Сброс порядка")
 
     if do_draw:
-        seed_preview = secrets.token_hex(16)
-        commit_preview = sha256_hex(seed_preview)
+        seed = secrets.token_hex(16)
+        commit = sha256_hex(seed)
         render_html(f"""
 <div class="commitbox">
   <div><b>Жеребе әділдігі</b> <span class="small-muted">Честность жеребьёвки</span></div>
   <div class="small-muted">
-    Алдымен commit көрсетіледі, кейін жеребе өтеді, соңында seed ашылады.<br/>
-    Сначала показывается commit, затем жеребьёвка, в конце раскрывается seed.
+    Commit алдымен көрсетіледі, жеребе сол commit-ке сәйкес seed арқылы өтеді, соңында seed ашылады.<br/>
+    Commit показывается заранее, порядок фиксируется seed, в конце seed раскрывается.
   </div>
-  <div class="small-muted">Commit: <code>{commit_preview}</code></div>
+  <div class="small-muted">Commit: <code>{commit}</code></div>
 </div>
 """)
 
-        # Run official draw (fresh seed inside function), show visuals, then save.
-        order, meta = run_fair_draw_animation(DIRECTIONS)
+        order = run_fair_draw_animation_with_seed(seed, DIRECTIONS)
 
         state["presentation_order"] = order
-        state["last_draw"] = meta
+        state["last_draw"] = {
+            "commit": commit,
+            "seed": seed,
+            "method": "random.Random(int(seed,16)).shuffle()",
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
         save_state(state)
 
         st.success("Жеребе аяқталды. Seed ашылды.")
         st.caption("Жеребьёвка завершена. Seed раскрыт.")
-        st.info(f"Seed: {meta['seed']}")
+        st.info(f"Seed: {seed}")
         st.rerun()
 
     if do_reset:
@@ -652,13 +630,13 @@ else:
 
     updated_at = state.get("updated_at") or ""
 
-    # Radar plots per direction (no averages)
+    # Radar plots per direction (bigger, 2 columns)
     render_html("<hr class='hr'>")
     bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
 
     order = state.get("presentation_order") or list(DIRECTIONS)
 
-    per_row = 3
+    per_row = 2
     for start in range(0, len(order), per_row):
         cols = st.columns(per_row)
         for j in range(per_row):
@@ -666,32 +644,13 @@ else:
             if idx >= len(order):
                 break
             d = order[idx]
-
-            cols[j].markdown(f"**{d}**")
-            cols[j].markdown(f"<div class='small-muted'>{DIRECTION_RU.get(d,'')}</div>", unsafe_allow_html=True)
-
             vals = [int(x) for x in state["scores"][d]]
             fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION)
             cols[j].pyplot(fig, clear_figure=True)
 
-    # Export (keep, but ABOVE the final rating)
+    # Final rating
     df_tot = totals_df(state)
-    df_det = details_df(state)
-    excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
-    filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
 
-    render_html("<hr class='hr'>")
-    st.download_button(
-        label="Нәтижені Excel ретінде жүктеу",
-        data=excel_bytes,
-        file_name=filename,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
-        key="download_excel_btn",
-    )
-    st.caption("Скачать результаты в Excel")
-
-    # Final rating at the very bottom
     render_html("<hr class='hr'>")
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
 
@@ -701,7 +660,6 @@ else:
         name = row["Бағыт"]
         total = int(row["Total"])
         badge = f"{rank}-орын"
-
         cls = "lbrow"
         if rank == 1:
             cls += " top1"
@@ -720,3 +678,19 @@ else:
         )
     rows_html += "</div>"
     render_html(rows_html)
+
+    # Download button moved to very bottom (below final results)
+    df_det = details_df(state)
+    excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
+    filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
+
+    render_html("<hr class='hr'>")
+    st.download_button(
+        label="Нәтижені Excel ретінде жүктеу",
+        data=excel_bytes,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="download_excel_btn",
+    )
+    st.caption("Скачать результаты в Excel")
