@@ -137,8 +137,7 @@ ALIASES = {
 }
 
 
-# ---------------- Query params (FIX: use ONLY st.query_params) ----------------
-# Never call st.experimental_*query_params* anywhere to avoid the StreamlitAPIException.
+# ---------------- Query params (use ONLY st.query_params) ----------------
 def qp_get(key: str, default: str | None = None) -> str | None:
     v = st.query_params.get(key, default)
     if isinstance(v, list):
@@ -150,6 +149,9 @@ def set_view(view: str | None, fs: bool):
     if view is not None:
         st.query_params["view"] = view
         st.query_params["fs"] = "1" if fs else "0"
+
+def clear_view():
+    st.query_params.clear()
 
 
 # ---------------- SAFE HTML RENDER ----------------
@@ -203,6 +205,20 @@ header { visibility: hidden; }
 </style>
 """)
 
+def apply_normal_chrome_css_reset():
+    # Ensures the UI comes back after exiting fullscreen view (in case CSS sticks in DOM).
+    render_html("""
+<style>
+#MainMenu { visibility: visible; }
+footer { visibility: visible; }
+header { visibility: visible; }
+[data-testid="stToolbar"] { display: flex !important; }
+[data-testid="stSidebar"] { display: block !important; }
+[data-testid="stStatusWidget"] { display: block !important; }
+[data-testid="stDecoration"] { display: block !important; }
+</style>
+""")
+
 
 # ---------------- BILINGUAL HELPERS ----------------
 def bi_h1(kk: str, ru: str):
@@ -249,13 +265,19 @@ def show_logo_sidebar_and_main(show_in_main: bool = True):
 def require_pin_if_needed():
     if not PIN_REQUIRED:
         return
+    if st.session_state.get("pin_ok") is True:
+        return
+
     st.sidebar.markdown(" ")
     st.sidebar.markdown("**PIN енгізіңіз**")
     st.sidebar.markdown("<div class='small-muted'>Введите PIN</div>", unsafe_allow_html=True)
     entered = st.sidebar.text_input("", type="password", key="pin_input")
+
     if entered != PIN:
         st.warning("PIN енгізіңіз / Введите PIN")
         st.stop()
+
+    st.session_state["pin_ok"] = True
 
 
 # ---------------- STORAGE ----------------
@@ -431,8 +453,7 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
 
     ph_list = st.empty()
     prog = st.progress(0.0)
-
-    rng_visual = random.Random()  # visual-only highlights
+    rng_visual = random.Random()
 
     for k, chosen in enumerate(final_order, start=1):
         chosen_idx = remaining.index(chosen)
@@ -458,11 +479,11 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
     return final_order
 
 
-# ---------------- RADAR ----------------
+# ---------------- RADAR (cleaner) ----------------
 def wrap_label(s: str, width: int = 22) -> str:
     return "\n".join(textwrap.wrap(s, width=width)) if len(s) > width else s
 
-def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
+def plot_radar(direction_kk: str, values: list[int], max_val: int = 2, big: bool = False):
     crits = CRITERIA_BI[direction_kk]
     labels = [
         f"{i+1}. {wrap_label(c['kk'], 22)}\n{wrap_label(c['ru'], 22)}"
@@ -474,20 +495,28 @@ def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
     angles += angles[:1]
     vals = list(values) + [values[0]]
 
-    fig, ax = plt.subplots(figsize=(6.2, 6.2), subplot_kw=dict(polar=True))
+    fig_size = 7.4 if big else 6.6
+    fig, ax = plt.subplots(figsize=(fig_size, fig_size), subplot_kw=dict(polar=True))
+
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontsize=9)
-    ax.tick_params(axis="x", pad=28)
+
+    # Push criterion labels outward (reduces overlap with plot)
+    ax.tick_params(axis="x", pad=40 if big else 34)
 
     ax.set_ylim(0, max_val)
     ax.set_yticks([0, 1, 2])
     ax.set_yticklabels(["0 ұпай\n0 балл", "1 ұпай\n1 балл", "2 ұпай\n2 балл"], fontsize=10)
 
+    # Move radial tick labels away from top label
+    ax.set_rlabel_position(90)
+    ax.tick_params(axis="y", pad=10)
+
     ax.grid(alpha=0.22)
-    ax.yaxis.grid(alpha=0.30, linewidth=1.1)
+    ax.yaxis.grid(alpha=0.30, linewidth=1.05)
     ax.spines["polar"].set_alpha(0.25)
 
     ax.plot(angles, vals, linewidth=2.8, alpha=0.95)
@@ -495,11 +524,13 @@ def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
 
     ax.set_title(
         f"{direction_kk}\n{DIRECTION_RU.get(direction_kk, '')}",
-        fontsize=14,
+        fontsize=14 if big else 13,
         fontweight="bold",
-        pad=30,
+        pad=34 if big else 30,
     )
-    fig.subplots_adjust(top=0.86, bottom=0.05, left=0.06, right=0.94)
+
+    # More breathing room so labels don't get cut
+    fig.subplots_adjust(top=0.86, bottom=0.06, left=0.04, right=0.96)
     return fig
 
 
@@ -570,7 +601,7 @@ def render_leaderboard(state: dict, show_heading: bool = True):
     rows_html += "</div>"
     render_html(rows_html)
 
-def render_radars(state: dict, order: list[str], two_cols: bool = True):
+def render_radars(state: dict, order: list[str], two_cols: bool = True, big: bool = False):
     bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
     per_row = 2 if two_cols else 1
     for start in range(0, len(order), per_row):
@@ -581,8 +612,11 @@ def render_radars(state: dict, order: list[str], two_cols: bool = True):
                 break
             d = order[idx]
             vals = [int(x) for x in state["scores"][d]]
-            fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION)
-            cols[j].pyplot(fig, clear_figure=True)
+            with cols[j]:
+                # Light "card" border to separate plots visually
+                with st.container(border=True):
+                    fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION, big=big)
+                    st.pyplot(fig, clear_figure=True)
 
 
 # ---------------- MAIN APP ----------------
@@ -596,7 +630,14 @@ if view in {"order", "leaderboard", "radars"}:
     if fs:
         apply_fullscreen_css()
 
-    show_logo_sidebar_and_main(show_in_main=not fs)
+    # EXIT button so user can escape without restarting and without re-entering PIN
+    top = st.container()
+    with top:
+        c1, c2 = st.columns([1, 9])
+        if c1.button("Қайту", use_container_width=True, key="exit_fullscreen"):
+            clear_view()
+            st.rerun()
+        c2.caption("Назад")
 
     state = load_state()
     order = state.get("presentation_order") or list(DIRECTIONS)
@@ -616,11 +657,14 @@ if view in {"order", "leaderboard", "radars"}:
     elif view == "radars":
         bi_h1("Нәтижелер", "Результаты")
         render_html("<hr class='hr'>")
-        render_radars(state, order, two_cols=not fs)
+        # In fullscreen radar view: 1 column, bigger plot, scroll naturally
+        render_radars(state, order, two_cols=False, big=True)
 
     st.stop()
 
-# Normal app mode
+# Normal app mode (force UI back, just in case)
+apply_normal_chrome_css_reset()
+
 show_logo_sidebar_and_main(show_in_main=True)
 
 state = load_state()
@@ -774,7 +818,7 @@ else:
     order = state.get("presentation_order") or list(DIRECTIONS)
 
     render_html("<hr class='hr'>")
-    render_radars(state, order, two_cols=True)
+    render_radars(state, order, two_cols=True, big=False)
 
     cfs1, cfs2 = st.columns([1, 5])
     if cfs1.button("Толық экран", use_container_width=True, key="fs_radars"):
