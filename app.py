@@ -7,10 +7,12 @@ import hashlib
 from datetime import datetime
 from io import BytesIO
 import textwrap
+from math import pi
 
 import pandas as pd
 import streamlit as st
 import altair as alt
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Hackathon Results", layout="wide")
 
@@ -21,20 +23,32 @@ DATA_FILE = "scores.json"
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
-# Бағыттар / Направления (fixed)
+# Logo (put the file next to app.py). Fallback path is for your current environment.
+LOGO_CANDIDATES = ["Логотип-рус.png", "/mnt/data/Логотип-рус.png"]
+
+# Бағыттар (KK main) + Russian subtitle mapping
 DIRECTIONS = [
-    "Естественно-научная грамотность",
+    "Жаратылыстану-ғылыми сауаттылық",
     "Математикалық сауаттылық",
-    "Межкультурная грамотность",
-    "Финансовая грамотность",
-    "Цифровая грамотность",
-    "Читательская грамотность",
+    "Мәдениетаралық сауаттылық",
+    "Қаржылық сауаттылық",
+    "Цифрлық сауаттылық",
+    "Оқырмандық сауаттылық",
     "Экологиялық сауаттылық",
 ]
+DIRECTION_RU = {
+    "Жаратылыстану-ғылыми сауаттылық": "Естественно-научная грамотность",
+    "Математикалық сауаттылық": "Математическая грамотность",
+    "Мәдениетаралық сауаттылық": "Межкультурная грамотность",
+    "Қаржылық сауаттылық": "Финансовая грамотность",
+    "Цифрлық сауаттылық": "Цифровая грамотность",
+    "Оқырмандық сауаттылық": "Читательская грамотность",
+    "Экологиялық сауаттылық": "Экологическая грамотность",
+}
 
-# Bilingual criteria per direction (fixed) - each item: {"kk": ..., "ru": ...}
+# критерийлер (each item has KK + RU)
 CRITERIA_BI = {
-    "Естественно-научная грамотность": [
+    "Жаратылыстану-ғылыми сауаттылық": [
         {"kk": "Суды сүзудің тиімділігі", "ru": "Эффективность фильтрации воды"},
         {"kk": "Сүзгінің жұмысын ғылыми тұрғыда түсіндіру", "ru": "Научное объяснение работы фильтра"},
         {"kk": "Сүзгінің құрылымы және жинақталуы", "ru": "Конструкция и сборка фильтра"},
@@ -48,28 +62,28 @@ CRITERIA_BI = {
         {"kk": "Камералардың максималды санын есептеу", "ru": "Вычисляет максимальное количество камер"},
         {"kk": "Камералардың минималды санын есептеу", "ru": "Вычисляет минимальное количество камер"},
     ],
-    "Межкультурная грамотность": [
+    "Мәдениетаралық сауаттылық": [
         {"kk": "Дұрыс және проблемалы хабарламаларды анықтау", "ru": "Определение корректного и проблемных сообщений"},
         {"kk": "Мәдениетаралық тәуекелдерді талдау", "ru": "Аргументация и анализ межкультурных рисков"},
         {"kk": "Мәдениетаралық сауаттылық қағидаттарын түсіну", "ru": "Понимание принципов межкультурной грамотности"},
         {"kk": "Оқушыларға арналған практикалық ұсынымдар", "ru": "Практические рекомендации обучающимся"},
         {"kk": "Фестивальге арналған мини-нұсқаулық", "ru": "Мини-инструкция (памятка) для фестиваля"},
     ],
-    "Финансовая грамотность": [
+    "Қаржылық сауаттылық": [
         {"kk": "Бюджетті жоспарлау және негіздеу", "ru": "Планирование и обоснование бюджета"},
         {"kk": "Ресурстарды ұтымды бөлу", "ru": "Логичное и рациональное распределение ресурсов"},
         {"kk": "Қаржылық тәуекелдерді бағалау", "ru": "Оценка финансовых рисков"},
         {"kk": "Командалық жұмыс және қорғау мәдениеті", "ru": "Командная работа и культура защиты"},
         {"kk": "Мектеп үшін білім беру әсері", "ru": "Образовательный эффект для школы"},
     ],
-    "Цифровая грамотность": [
+    "Цифрлық сауаттылық": [
         {"kk": "Легитимді хатты анықтау", "ru": "Определение легитимного письма"},
         {"kk": "Цифрлық тәуекелдерді талдау және аргументация", "ru": "Анализ и аргументация цифровых рисков"},
         {"kk": "Цифрлық қауіпсіздік қағидаттарын түсіну", "ru": "Понимание принципов цифровой безопасности"},
         {"kk": "Күмәнді хат алған жағдайда әрекет ету алгоритмі", "ru": "Алгоритм действий при подозрительном письме"},
         {"kk": "Мектептің киберқауіпсіздігін қамтамасыз ету бойынша ұсыныстар", "ru": "Предложения по обеспечению кибербезопасности школы"},
     ],
-    "Читательская грамотность": [
+    "Оқырмандық сауаттылық": [
         {"kk": "Мәтінді түсіну және пайдалану", "ru": "Понимание и использование текста"},
         {"kk": "Шешімнің дәлелділігі мен логикасы", "ru": "Аргументация и логика решения"},
         {"kk": "Ұсынылған қадамдардың іске асырылу мүмкіндігі", "ru": "Реалистичность предложенных шагов"},
@@ -85,10 +99,31 @@ CRITERIA_BI = {
     ],
 }
 
+# Aliases to migrate old saved JSON (previous direction names -> new KK names)
+ALIASES = {
+    "Естественно-научная грамотность": "Жаратылыстану-ғылыми сауаттылық",
+    "Жаратылыстану-ғылыми сауаттылық": "Жаратылыстану-ғылыми сауаттылық",
+    "Математическая грамотность": "Математикалық сауаттылық",
+    "Математикалық сауаттылық": "Математикалық сауаттылық",
+    "Межкультурная грамотность": "Мәдениетаралық сауаттылық",
+    "Мәдениетаралық сауаттылық": "Мәдениетаралық сауаттылық",
+    "Финансовая грамотность": "Қаржылық сауаттылық",
+    "Қаржылық сауаттылық": "Қаржылық сауаттылық",
+    "Цифровая грамотность": "Цифрлық сауаттылық",
+    "Цифрлық сауаттылық": "Цифрлық сауаттылық",
+    "Цифрлық қауіпсіздік / Цифровая безопасность": "Цифрлық сауаттылық",
+    "Читательская грамотность": "Оқырмандық сауаттылық",
+    "Оқырмандық сауаттылық": "Оқырмандық сауаттылық",
+    "Экологическая грамотность": "Экологиялық сауаттылық",
+    "Экологиялық сауаттылық": "Экологиялық сауаттылық",
+}
+
+
 # ---------------- SAFE HTML RENDER ----------------
 def render_html(html: str):
     html = textwrap.dedent(html).strip()
     st.markdown(html, unsafe_allow_html=True)
+
 
 # ---------------- GLOBAL STYLE ----------------
 render_html("""
@@ -99,8 +134,10 @@ render_html("""
 
 .lb { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .lbrow { display: grid; grid-template-columns: 64px 1fr 110px; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 12px 14px; background: rgba(255,255,255,0.03); }
-.lbrow .rank { font-weight: 950; font-size: 1.1rem; opacity: 0.95; }
-.lbrow .team { font-weight: 850; font-size: 1.05rem; line-height: 1.15; }
+.lbrow .rank { font-weight: 950; font-size: 1.05rem; opacity: 0.95; }
+.lbrow .team { line-height: 1.1; }
+.lbrow .team .kk { font-weight: 900; font-size: 1.02rem; }
+.lbrow .team .ru { color:#8a8a8a; font-size: 0.90rem; margin-top: 2px; }
 .lbrow .score { text-align: right; font-weight: 950; font-size: 1.15rem; }
 .lbrow.top1 { background: rgba(34,197,94,0.12); }
 .lbrow.top2 { background: rgba(59,130,246,0.12); }
@@ -114,10 +151,10 @@ render_html("""
 .drawitem.hl { border-color: rgba(34,197,94,0.60); box-shadow: 0 0 0 3px rgba(34,197,94,0.20); background: rgba(34,197,94,0.08); }
 .drawitem.picked { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.07); }
 .drawbadge { display:inline-block; font-size: 0.82rem; color:#9aa0a6; border:1px solid rgba(255,255,255,0.10); padding:2px 10px; border-radius:999px; margin-left: 10px; }
-.bigcenter { text-align:center; font-weight: 950; font-size: 1.2rem; margin-top: 6px; }
 .commitbox { border:1px dashed rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
 </style>
 """)
+
 
 # ---------------- BILINGUAL HELPERS ----------------
 def bi_h1(kk: str, ru: str):
@@ -139,20 +176,38 @@ def bi_h2(kk: str, ru: str):
 def caption_bi(kk: str, ru: str):
     render_html(f"<div class='small-muted'>{kk} • {ru}</div>")
 
+def direction_bi_html(direction_kk: str) -> str:
+    ru = DIRECTION_RU.get(direction_kk, "")
+    return f"<div class='team'><div class='kk'>{direction_kk}</div><div class='ru'>{ru}</div></div>"
+
+
+# ---------------- LOGO (SIDEBAR) ----------------
+def show_sidebar_logo():
+    for p in LOGO_CANDIDATES:
+        if os.path.exists(p):
+            st.sidebar.image(p, use_container_width=True)
+            return
+
+show_sidebar_logo()
+
+
 # ---------------- AUTH ----------------
 def require_pin_if_needed():
     if not PIN_REQUIRED:
         return
-    entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password", key="pin_input")
+    st.sidebar.markdown(" ")
+    st.sidebar.markdown("**PIN енгізіңіз**")
+    st.sidebar.markdown("<div class='small-muted'>Введите PIN</div>", unsafe_allow_html=True)
+    entered = st.sidebar.text_input("", type="password", key="pin_input")
     if entered != PIN:
         st.warning("PIN енгізіңіз / Введите PIN")
         st.stop()
+
 
 # ---------------- STORAGE ----------------
 def default_state():
     scores = {d: [0] * len(CRITERIA_BI[d]) for d in DIRECTIONS}
     return {
-        "directions": list(DIRECTIONS),
         "scores": scores,
         "presentation_order": list(DIRECTIONS),
         "last_draw": None,   # {"commit":..., "seed":..., "method":..., "time":...}
@@ -180,52 +235,57 @@ def load_state():
         save_state(s)
         return s
 
-    # If old format or broken structure -> reset
     if not isinstance(s, dict) or "scores" not in s:
         s = default_state()
         save_state(s)
         return s
 
-    # Force fixed directions
-    s["directions"] = list(DIRECTIONS)
+    # Normalize scores
+    scores_in = s.get("scores")
+    if not isinstance(scores_in, dict):
+        scores_in = {}
 
-    # Fix scores structure to {direction: [0..0] len=5}
-    if not isinstance(s.get("scores"), dict):
-        s["scores"] = {}
+    scores_out = {d: [0] * len(CRITERIA_BI[d]) for d in DIRECTIONS}
 
-    for d in DIRECTIONS:
-        want_len = len(CRITERIA_BI[d])
-        cur = s["scores"].get(d)
+    for k, v in scores_in.items():
+        kk_name = ALIASES.get(k)
+        if not kk_name or kk_name not in scores_out:
+            continue
+        want_len = len(CRITERIA_BI[kk_name])
+        if isinstance(v, list) and len(v) == want_len:
+            scores_out[kk_name] = [int(x) for x in v]
+        elif isinstance(v, dict):
+            tmp = [0] * want_len
+            for i in range(want_len):
+                tmp[i] = int(v.get(str(i), v.get(i, 0)) or 0)
+            scores_out[kk_name] = tmp
 
-        if not isinstance(cur, list) or len(cur) != want_len:
-            # try to salvage from old dict-based scores if present
-            if isinstance(cur, dict):
-                # take values by index order if keys are 0.. etc, else zeros
-                tmp = [0] * want_len
-                for i in range(want_len):
-                    tmp[i] = int(cur.get(str(i), cur.get(i, 0)) or 0)
-                s["scores"][d] = tmp
-            else:
-                s["scores"][d] = [0] * want_len
-        else:
-            s["scores"][d] = [int(x) for x in cur]
+    s["scores"] = scores_out
 
-    # Presentation order
+    # Normalize presentation order
     po = s.get("presentation_order")
     if not isinstance(po, list):
-        s["presentation_order"] = list(DIRECTIONS)
+        po = list(DIRECTIONS)
     else:
-        po = [x for x in po if x in DIRECTIONS]
+        mapped = []
+        for x in po:
+            kk = ALIASES.get(x)
+            if kk and kk in DIRECTIONS and kk not in mapped:
+                mapped.append(kk)
         for d in DIRECTIONS:
-            if d not in po:
-                po.append(d)
-        s["presentation_order"] = po
+            if d not in mapped:
+                mapped.append(d)
+        po = mapped
+    s["presentation_order"] = po
 
-    # last_draw can be None or dict
     if s.get("last_draw") is not None and not isinstance(s["last_draw"], dict):
         s["last_draw"] = None
 
+    if "updated_at" not in s:
+        s["updated_at"] = None
+
     return s
+
 
 # ---------------- KEYS & SESSION SYNC ----------------
 def score_key(direction: str, idx: int) -> str:
@@ -233,28 +293,23 @@ def score_key(direction: str, idx: int) -> str:
     return f"score_{h}"
 
 def sync_session_from_file_state(file_state: dict):
-    """
-    Sync inputs from file into session_state when file updated_at changes.
-    Prevents the 'controls not changing' / 'resetting' behavior.
-    """
     file_stamp = file_state.get("updated_at")
     if st.session_state.get("_scores_loaded_at") == file_stamp:
         return
-
     for d in DIRECTIONS:
         arr = file_state["scores"].get(d, [0] * len(CRITERIA_BI[d]))
         for i in range(len(CRITERIA_BI[d])):
             st.session_state[score_key(d, i)] = int(arr[i])
-
     st.session_state["_scores_loaded_at"] = file_stamp
+
 
 # ---------------- COMPUTE ----------------
 def totals_df(state: dict) -> pd.DataFrame:
     rows = []
     for d in DIRECTIONS:
         total = sum(int(x) for x in state["scores"][d])
-        rows.append({"Бағыт / Направление": d, "Total": total})
-    df = pd.DataFrame(rows).sort_values(["Total", "Бағыт / Направление"], ascending=[False, True]).reset_index(drop=True)
+        rows.append({"Бағыт": d, "Total": total})
+    df = pd.DataFrame(rows).sort_values(["Total", "Бағыт"], ascending=[False, True]).reset_index(drop=True)
     return df
 
 def details_df(state: dict) -> pd.DataFrame:
@@ -262,9 +317,10 @@ def details_df(state: dict) -> pd.DataFrame:
     for d in DIRECTIONS:
         for i, crit in enumerate(CRITERIA_BI[d], start=1):
             rows.append({
-                "Бағыт / Направление": d,
-                "№": i,
-                "Criterion (KK)": crit["kk"],
+                "Бағыт (KK)": d,
+                "Направление (RU)": DIRECTION_RU.get(d, ""),
+                "N": i,
+                "Критерий (KK)": crit["kk"],
                 "Критерий (RU)": crit["ru"],
                 "Score": int(state["scores"][d][i - 1]),
             })
@@ -279,82 +335,113 @@ def to_excel_bytes(df_totals: pd.DataFrame, df_details: pd.DataFrame, updated_at
     buf.seek(0)
     return buf.getvalue()
 
-# ---------------- RANDOMIZER (FAIR DRAW) ----------------
+
+# ---------------- RANDOMIZER (FAIR DRAW + VISUAL) ----------------
 def sha256_hex(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 def draw_html(picked: list[str], remaining: list[str], highlight_idx: int | None):
-    def item_html(name: str, cls: str, badge: str | None = None):
-        b = f"<span class='drawbadge'>{badge}</span>" if badge else ""
-        return f"<div class='drawitem {cls}'>{name}{b}</div>"
+    left = ""
+    if picked:
+        for i, name in enumerate(picked, start=1):
+            left += f"<div class='drawitem picked'>{direction_bi_html(name)}<span class='drawbadge'>{i}</span></div>"
+    else:
+        left = "<div class='small-muted'>Әлі таңдалмаған • Пока не выбрано</div>"
 
-    left = "".join(item_html(n, "picked", f"#{i}") for i, n in enumerate(picked, start=1))
-    if not left:
-        left = "<div class='small-muted'>—</div>"
-
-    right_parts = []
-    for i, n in enumerate(remaining):
-        cls = "hl" if (highlight_idx is not None and i == highlight_idx) else ""
-        right_parts.append(item_html(n, cls, None))
-    right = "".join(right_parts) if right_parts else "<div class='small-muted'>—</div>"
+    right = ""
+    if remaining:
+        for i, name in enumerate(remaining, start=1):
+            cls = "hl" if (highlight_idx is not None and i - 1 == highlight_idx) else ""
+            right += f"<div class='drawitem {cls}'>{direction_bi_html(name)}</div>"
+    else:
+        right = "<div class='small-muted'>Аяқталды • Завершено</div>"
 
     return f"""
 <div class="drawwrap">
   <div class="drawcard">
-    <div class="drawtitle">✅ Таңдалған реттілік / Выбранный порядок</div>
+    <div class="drawtitle">Таңдалған кезектілік <span class="small-muted">Выбранный порядок</span></div>
     {left}
   </div>
   <div class="drawcard">
-    <div class="drawtitle">🎯 Қалған бағыттар / Оставшиеся направления</div>
+    <div class="drawtitle">Қалған бағыттар <span class="small-muted">Оставшиеся направления</span></div>
     {right}
   </div>
 </div>
 """
 
+def plot_wheel(remaining: list[str], highlight_idx: int | None = None, rotation_deg: float = 0.0):
+    n = len(remaining)
+    fig = plt.figure(figsize=(4.2, 4.2))
+    ax = fig.add_subplot(111)
+    ax.set_aspect("equal")
+
+    sizes = [1] * n
+    explode = [0.0] * n
+    if highlight_idx is not None and 0 <= highlight_idx < n:
+        explode[highlight_idx] = 0.08
+
+    # Wedge labels as numbers (names are shown in the list on the right)
+    labels = [str(i + 1) for i in range(n)]
+
+    ax.pie(
+        sizes,
+        labels=labels,
+        startangle=90 + rotation_deg,
+        counterclock=False,
+        explode=explode,
+        wedgeprops=dict(linewidth=1, edgecolor="white"),
+        textprops=dict(fontsize=11, fontweight="bold"),
+    )
+
+    # Pointer line at the top (12 o'clock)
+    ax.plot([0, 0], [0, 1.15], linewidth=3)
+    ax.set_title("Жеребе визуализациясы\nЖеребьёвка (визуализация)", fontsize=11, fontweight="bold")
+    fig.tight_layout()
+    return fig
+
 def run_fair_draw_animation(directions: list[str]) -> tuple[list[str], dict]:
-    """
-    Commit-reveal:
-      1) create seed (hidden), show commit hash
-      2) compute final order using deterministic shuffle(seed)
-      3) animate revealing picks
-      4) reveal seed for verification
-    """
     seed = secrets.token_hex(16)
     commit = sha256_hex(seed)
     method = "random.Random(int(seed,16)).shuffle()"
 
-    # final order determined ONLY by seed
     rng = random.Random(int(seed, 16))
     final_order = list(directions)
     rng.shuffle(final_order)
 
-    # animate reveal
     remaining = list(directions)
     picked: list[str] = []
-    ph = st.empty()
+
+    ph_wheel = st.empty()
+    ph_list = st.empty()
     prog = st.progress(0.0)
 
     for k, chosen in enumerate(final_order, start=1):
-        # random highlight flicker (visual only, does NOT affect outcome)
-        for _ in range(22):
-            hi = random.randrange(len(remaining))
-            with ph:
-                render_html(draw_html(picked, remaining, hi))
-            time.sleep(0.05)
-
-        # land on the chosen item clearly
         chosen_idx = remaining.index(chosen)
-        for _ in range(6):
-            with ph:
+
+        # Spin animation (visual only, result already fixed by seed)
+        spins = 36
+        for t in range(spins):
+            hi = random.randrange(len(remaining))
+            rot = (t * (360 / spins)) + random.uniform(-6, 6)
+            with ph_wheel:
+                st.pyplot(plot_wheel(remaining, highlight_idx=hi, rotation_deg=rot), clear_figure=True)
+            with ph_list:
+                render_html(draw_html(picked, remaining, hi))
+            time.sleep(0.04)
+
+        # Land clearly on the chosen item
+        for _ in range(8):
+            with ph_wheel:
+                st.pyplot(plot_wheel(remaining, highlight_idx=chosen_idx, rotation_deg=0), clear_figure=True)
+            with ph_list:
                 render_html(draw_html(picked, remaining, chosen_idx))
             time.sleep(0.06)
 
         picked.append(chosen)
         remaining.remove(chosen)
         prog.progress(k / len(final_order))
-        time.sleep(0.12)
 
-        with ph:
+        with ph_list:
             render_html(draw_html(picked, remaining, None))
 
     draw_meta = {
@@ -365,137 +452,199 @@ def run_fair_draw_animation(directions: list[str]) -> tuple[list[str], dict]:
     }
     return final_order, draw_meta
 
+
+# ---------------- RADAR ----------------
+def wrap_label(s: str, width: int = 18) -> str:
+    return "\n".join(textwrap.wrap(s, width=width)) if len(s) > width else s
+
+def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
+    crits = CRITERIA_BI[direction_kk]
+    labels = [f"{i+1}. {wrap_label(c['kk'], 18)}\n{wrap_label(c['ru'], 18)}" for i, c in enumerate(crits)]
+
+    n = len(labels)
+    angles = [i / float(n) * 2 * pi for i in range(n)]
+    angles += angles[:1]
+    vals = list(values) + [values[0]]
+
+    fig, ax = plt.subplots(figsize=(3.8, 3.8), subplot_kw=dict(polar=True))
+    ax.set_theta_offset(pi / 2)
+    ax.set_theta_direction(-1)
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=7)
+
+    ax.set_ylim(0, max_val)
+    ax.set_yticks(list(range(0, max_val + 1)))
+    ax.set_yticklabels([str(i) for i in range(0, max_val + 1)], fontsize=8)
+
+    ax.grid(alpha=0.25)
+    ax.spines["polar"].set_alpha(0.25)
+
+    ax.plot(angles, vals, linewidth=2.2, alpha=0.95)
+    ax.fill(angles, vals, alpha=0.12)
+
+    fig.tight_layout()
+    return fig
+
+
 # ---------------- APP ----------------
 state = load_state()
 
 st.sidebar.markdown("### Режим / Режим")
 mode = st.sidebar.radio(
     " ",
-    ["Баптау / Настройки", "Әділқазы / Жюри", "Экран / Экран"],
+    ["Презентациялар кезектілігі", "Бағалау", "Нәтижелер"],
     index=0,
     key="mode_radio",
 )
 
-# ---------------- SETTINGS ----------------
-if mode.startswith("Баптау"):
+# ---------------- SETTINGS (Презентациялар кезектілігі) ----------------
+if mode == "Презентациялар кезектілігі":
     require_pin_if_needed()
 
-    bi_h1("Баптау", "Настройки")
+    bi_h1("Презентациялар кезектілігін анықтау", "Определение очередности презентаций")
     caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
     render_html("<hr class='hr'>")
-
-    bi_h2("Жеребе (рандомайзер) — әділ және көрнекі", "Жеребьёвка — честно и наглядно")
 
     last = state.get("last_draw") or {}
     if last:
         render_html(f"""
 <div class="commitbox">
-  <div><b>Соңғы жеребе / Последняя жеребьёвка:</b> {last.get("time","")}</div>
+  <div><b>Соңғы жеребе</b> <span class="small-muted">Последняя жеребьёвка</span>: {last.get("time","")}</div>
   <div class="small-muted">Commit: <code>{last.get("commit","")}</code></div>
   <div class="small-muted">Seed: <code>{last.get("seed","")}</code></div>
 </div>
 """)
 
-    c1, c2, c3 = st.columns([1.3, 1.0, 2.7])
-    if c1.button("🎲 Жеребе тарту / Провести жеребьёвку", key="draw_btn", use_container_width=True):
-        render_html("<div class='bigcenter'>⏳ Жеребе өтіп жатыр... / Идёт жеребьёвка...</div>")
+    c1, c2, c3 = st.columns([1.2, 1.1, 2.7])
+
+    do_draw = c1.button("Жеребе тарту", key="draw_btn", use_container_width=True)
+    c1.caption("Провести жеребьёвку")
+
+    do_reset = c2.button("Әдепкі рет", key="reset_order_btn", use_container_width=True)
+    c2.caption("Сброс порядка")
+
+    if do_draw:
+        seed_preview = secrets.token_hex(16)
+        commit_preview = sha256_hex(seed_preview)
         render_html(f"""
 <div class="commitbox">
-  <div><b>Commit (алдын ала дәлел):</b></div>
+  <div><b>Жеребе әділдігі</b> <span class="small-muted">Честность жеребьёвки</span></div>
   <div class="small-muted">
-    Төменде анимация кезінде нәтиже өзгермейді. Соңында seed ашылады. <br/>
-    Во время анимации результат не меняется. В конце seed будет показан.
+    Алдымен commit көрсетіледі, кейін жеребе өтеді, соңында seed ашылады.<br/>
+    Сначала показывается commit, затем жеребьёвка, в конце раскрывается seed.
   </div>
+  <div class="small-muted">Commit: <code>{commit_preview}</code></div>
 </div>
 """)
+
+        # Run official draw (fresh seed inside function), show visuals, then save.
         order, meta = run_fair_draw_animation(DIRECTIONS)
+
         state["presentation_order"] = order
         state["last_draw"] = meta
         save_state(state)
 
-        st.success(f"Seed ашылды / Seed раскрыт: {meta['seed']}")
-        st.info("Қаласаңыз тексеріңіз: бірдей seed болса — бірдей реттілік / Можно проверить: один seed — один порядок.")
+        st.success("Жеребе аяқталды. Seed ашылды.")
+        st.caption("Жеребьёвка завершена. Seed раскрыт.")
+        st.info(f"Seed: {meta['seed']}")
         st.rerun()
 
-    if c2.button("↩ Әдепкі рет / Сброс порядка", key="reset_order_btn", use_container_width=True):
+    if do_reset:
         state["presentation_order"] = list(DIRECTIONS)
         state["last_draw"] = None
         save_state(state)
-        st.success("Реттілік қалпына келтірілді / Порядок сброшен")
+        st.success("Реттілік қалпына келтірілді.")
+        st.caption("Порядок сброшен.")
         st.rerun()
 
     render_html("<hr class='hr'>")
-    bi_h2("Ағымдағы көрсету реті", "Текущий порядок выступления")
+    bi_h2(
+        "Жеребе арқылы анықталған презентациялар кезектілігі:",
+        "Очередность презентаций, определенная жеребьёвкой:",
+    )
+
     order = state.get("presentation_order") or list(DIRECTIONS)
     rows = "<div class='lb'>"
     for i, name in enumerate(order, start=1):
-        rows += f"<div class='lbrow'><div class='rank'>#{i}</div><div class='team'>{name}</div><div class='score'></div></div>"
+        rows += f"<div class='lbrow'><div class='rank'>{i}</div><div>{direction_bi_html(name)}</div><div class='score'></div></div>"
     rows += "</div>"
     render_html(rows)
 
     render_html("<hr class='hr'>")
-    bi_h2("Бағыттар мен критерийлер (бекітілген)", "Направления и критерии (фиксированные)")
-    with st.expander("👀 Көру / Смотреть", expanded=False):
+    bi_h2("Бағыттар мен критерийлер", "Направления и критерии")
+    with st.expander("Көру", expanded=False):
+        st.caption("Смотреть")
         for d in DIRECTIONS:
-            st.markdown(f"### {d}")
+            render_html(f"<div style='margin-top:10px'><b>{d}</b><div class='small-muted'>{DIRECTION_RU.get(d,'')}</div></div>")
             for i, crit in enumerate(CRITERIA_BI[d], start=1):
-                st.write(f"{i}. {crit['kk']} — {crit['ru']}")
-            st.write("")
+                render_html(f"<div style='margin-left:10px'>{i}. <b>{crit['kk']}</b><div class='small-muted'>{crit['ru']}</div></div>")
 
-# ---------------- JURY ----------------
-elif mode.startswith("Әділқазы"):
+# ---------------- JURY (Бағалау) ----------------
+elif mode == "Бағалау":
     require_pin_if_needed()
     sync_session_from_file_state(state)
 
-    bi_h1("Әділқазы панелі", "Панель жюри")
+    bi_h1("Бағалау", "Оценивание")
     caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
     render_html("<hr class='hr'>")
 
     bi_h2("Бағаларды енгізу (0–2)", "Ввод баллов (0–2)")
-    caption_bi("Слайдер арқылы өзгертіңіз — сенімді жұмыс істейді", "Меняйте слайдером — работает стабильно")
 
     for d in DIRECTIONS:
         with st.container(border=True):
-            # current total for this direction (from session_state)
-            vals = [int(st.session_state.get(score_key(d, i), 0)) for i in range(len(CRITERIA_BI[d]))]
-            st.markdown(f"### {d}  &nbsp; <span class='badchip'>Total: {sum(vals)}</span>", unsafe_allow_html=True)
+            current_vals = [int(st.session_state.get(score_key(d, i), 0)) for i in range(len(CRITERIA_BI[d]))]
+            total = sum(current_vals)
+            render_html(
+                f"<div style='margin-bottom:8px'><b>{d}</b>"
+                f"<div class='small-muted'>{DIRECTION_RU.get(d,'')}</div>"
+                f"<div class='small-muted'>Жалпы ұпай: {total} • Общий балл: {total}</div></div>"
+            )
 
             for i, crit in enumerate(CRITERIA_BI[d], start=1):
-                k = score_key(d, i - 1)
-                label = f"{i}. {crit['kk']}\n{crit['ru']}"
+                render_html(f"<div><b>{i}. {crit['kk']}</b><div class='small-muted'>{crit['ru']}</div></div>")
                 st.slider(
-                    label,
+                    label=f"{d}-{i}",
                     min_value=0,
                     max_value=MAX_PER_CRITERION,
-                    value=int(st.session_state.get(k, 0)),
+                    value=int(st.session_state.get(score_key(d, i - 1), 0)),
                     step=1,
-                    key=k,
+                    key=score_key(d, i - 1),
+                    label_visibility="collapsed",
                 )
 
     c1, c2, c3 = st.columns([1, 1, 2])
-    if c1.button("💾 Сақтау / Сохранить", key="save_scores_btn", use_container_width=True):
-        # collect from session_state and save to file
+
+    do_save = c1.button("Сақтау", key="save_scores_btn", use_container_width=True)
+    c1.caption("Сохранить")
+
+    do_reset = c2.button("Барлығын 0-ге қайтару", key="reset_scores_btn", use_container_width=True)
+    c2.caption("Сбросить всё в 0")
+
+    if do_save:
         for d in DIRECTIONS:
             arr = []
             for i in range(len(CRITERIA_BI[d])):
                 arr.append(int(st.session_state.get(score_key(d, i), 0)))
             state["scores"][d] = arr
         save_state(state)
-        st.success("Сақталды / Сохранено")
+        st.success("Сақталды.")
+        st.caption("Сохранено.")
         st.rerun()
 
-    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_scores_btn", use_container_width=True):
+    if do_reset:
         for d in DIRECTIONS:
             for i in range(len(CRITERIA_BI[d])):
                 st.session_state[score_key(d, i)] = 0
             state["scores"][d] = [0] * len(CRITERIA_BI[d])
         save_state(state)
-        st.success("Қайтарылды / Сброс выполнен")
+        st.success("Қайтарылды.")
+        st.caption("Сброс выполнен.")
         st.rerun()
 
-# ---------------- SCREEN ----------------
+# ---------------- RESULTS (Нәтижелер) ----------------
 else:
-    bi_h1("Хакатон нәтижелері", "Результаты хакатона")
+    bi_h1("Нәтижелер", "Результаты")
     caption_bi(
         f"Соңғы жаңарту: {state.get('updated_at')}",
         f"Последнее обновление: {state.get('updated_at')}",
@@ -503,49 +652,13 @@ else:
 
     updated_at = state.get("updated_at") or ""
 
-    # Presentation order
+    # Radar plots per direction (no averages)
     render_html("<hr class='hr'>")
-    bi_h2("Көрсету реті (жеребе)", "Порядок выступления (жеребьёвка)")
+    bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
+
     order = state.get("presentation_order") or list(DIRECTIONS)
 
-    rows = "<div class='lb'>"
-    for i, name in enumerate(order, start=1):
-        rows += f"<div class='lbrow'><div class='rank'>#{i}</div><div class='team'>{name}</div><div class='score'></div></div>"
-    rows += "</div>"
-    render_html(rows)
-
-    # Leaderboard
-    render_html("<hr class='hr'>")
-    bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
-    df_tot = totals_df(state)
-
-    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-    rows_html = "<div class='lb'>"
-    for i, row in df_tot.iterrows():
-        rank = i + 1
-        name = row["Бағыт / Направление"]
-        total = int(row["Total"])
-        badge = f"{rank}-орын / {rank} место"
-        left = medals.get(rank, f"#{rank}")
-        cls = "lbrow"
-        if rank == 1: cls += " top1"
-        elif rank == 2: cls += " top2"
-        elif rank == 3: cls += " top3"
-        rows_html += (
-            f"<div class='{cls}'>"
-            f"<div class='rank'>{left}</div>"
-            f"<div class='team'>{name}<span class='badchip'>{badge}</span></div>"
-            f"<div class='score'>{total}</div>"
-            f"</div>"
-        )
-    rows_html += "</div>"
-    render_html(rows_html)
-
-    # Per-direction criteria charts (bilingual labels)
-    render_html("<hr class='hr'>")
-    bi_h2("Әр бағыт бойынша критерий ұпайлары", "Баллы по критериям для каждого направления")
-
-    per_row = 2
+    per_row = 3
     for start in range(0, len(order), per_row):
         cols = st.columns(per_row)
         for j in range(per_row):
@@ -554,41 +667,56 @@ else:
                 break
             d = order[idx]
 
-            crits = CRITERIA_BI[d]
-            scores = state["scores"][d]
+            cols[j].markdown(f"**{d}**")
+            cols[j].markdown(f"<div class='small-muted'>{DIRECTION_RU.get(d,'')}</div>", unsafe_allow_html=True)
 
-            df_one = pd.DataFrame({
-                "Label": [f"{i+1}. {crits[i]['kk']}\n{crits[i]['ru']}" for i in range(len(crits))],
-                "Score": [int(x) for x in scores],
-                "KK": [crits[i]["kk"] for i in range(len(crits))],
-                "RU": [crits[i]["ru"] for i in range(len(crits))],
-            })
+            vals = [int(x) for x in state["scores"][d]]
+            fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION)
+            cols[j].pyplot(fig, clear_figure=True)
 
-            chart = (
-                alt.Chart(df_one)
-                .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
-                .encode(
-                    x=alt.X("Label:N", sort=None, title=None, axis=alt.Axis(labelAngle=-20, labelLimit=240)),
-                    y=alt.Y("Score:Q", title=None, scale=alt.Scale(domain=[0, MAX_PER_CRITERION])),
-                    tooltip=[
-                        alt.Tooltip("KK:N", title="Қаз / KK"),
-                        alt.Tooltip("RU:N", title="Рус / RU"),
-                        alt.Tooltip("Score:Q", title="Балл"),
-                    ],
-                )
-                .properties(height=290, title=d)
-            )
-            cols[j].altair_chart(chart, use_container_width=True)
-
-    # Export
+    # Export (keep, but ABOVE the final rating)
+    df_tot = totals_df(state)
     df_det = details_df(state)
     excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
+
+    render_html("<hr class='hr'>")
     st.download_button(
-        label="⬇️ Нәтижені Excel ретінде жүктеу / Скачать результаты в Excel",
+        label="Нәтижені Excel ретінде жүктеу",
         data=excel_bytes,
         file_name=filename,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
         key="download_excel_btn",
     )
+    st.caption("Скачать результаты в Excel")
+
+    # Final rating at the very bottom
+    render_html("<hr class='hr'>")
+    bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
+
+    rows_html = "<div class='lb'>"
+    for i, row in df_tot.reset_index(drop=True).iterrows():
+        rank = i + 1
+        name = row["Бағыт"]
+        total = int(row["Total"])
+        badge = f"{rank}-орын"
+
+        cls = "lbrow"
+        if rank == 1:
+            cls += " top1"
+        elif rank == 2:
+            cls += " top2"
+        elif rank == 3:
+            cls += " top3"
+
+        rows_html += (
+            f"<div class='{cls}'>"
+            f"<div class='rank'>{rank}</div>"
+            f"<div class='team'><div class='kk'>{name}<span class='badchip'>{badge}</span></div>"
+            f"<div class='ru'>{DIRECTION_RU.get(name,'')}</div></div>"
+            f"<div class='score'>{total}</div>"
+            f"</div>"
+        )
+    rows_html += "</div>"
+    render_html(rows_html)
