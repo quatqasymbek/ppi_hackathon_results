@@ -1,26 +1,91 @@
 import json
 import os
+import random
+import time
 from datetime import datetime
 from io import BytesIO
-from math import pi
 import textwrap
 
-import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
 import altair as alt
 
 st.set_page_config(page_title="Hackathon Results", layout="wide")
 
 # ---------------- CONFIG ----------------
-DEFAULT_TEAMS = [f"Team {i}" for i in range(1, 8)]
-DEFAULT_CRITERIA = [f"Criterion {i}" for i in range(1, 6)]
 MAX_PER_CRITERION = 2
 DATA_FILE = "scores.json"
 
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
+
+# Fixed directions (Бағыттар / Направления) and their own criteria lists
+DIRECTIONS = [
+    #"Естественно-научная грамотность",
+    "Жаратылыстану ғылымдары сауаттылығы",
+    "Математикалық сауаттылық",
+    #"Межкультурная грамотность",
+    "Мәдениетаралық сауаттылық",
+    #"Финансовая грамотность",
+    "Қаржылық сауаттылық",
+    "Цифрлық сауаттылық",  
+    # <-- (name was missing in your message)
+    #"Читательская грамотность",
+    "Оқу сауаттылығы",
+    "Экологиялық сауаттылық",
+]
+
+CRITERIA_BY_DIRECTION = {
+    "Жаратылыстану ғылымдары сауаттылығы": [
+        "Суды сүзудің тиімділігі",
+        "Сүзгінің жұмысын ғылыми тұрғыда түсіндіру",
+        "Сүзгінің құрылымы және жинақталуы",
+        "Нәтижені талдау және қорытынды",
+        "Презентация және командалық жұмыс",
+    ],
+    "Математикалық сауаттылық": [
+        "Жалпы ауданды табу",
+        "Камераның бақылауына кірмейтін ауданның пайызын есептеу",
+        "Камераның бақылауына кіретін аудандарды салыстыру",
+        "Камералардың максималды санын есептеу",
+        "Камералардың минималды санын есептеу",
+    ],
+    "Мәдениетаралық сауаттылық": [
+        "Дұрыс және проблемалы хабарламаларды анықтау",
+        "Мәдениетаралық тәуекелдерді талдау",
+        "Мәдениетаралық сауаттылық қағидаттарын түсіну",
+        "Оқушыларға арналған практикалық ұсынымдар",
+        "Фестивальге арналған мини-нұсқаулық",
+    ],
+     "Қаржылық сауаттылық": [
+        "Бюджетті жоспарлау және негіздеу",
+        "Ресурстарды ұтымды бөлу",
+        "Қаржылық тәуекелдерді бағалау",
+        "Командалық жұмыс және қорғау мәдениеті",
+        "Мектеп үшін білім беру әсері",
+    ],
+    "Цифрлық сауаттылық": [
+        "Легитимді хатты анықтау",
+        "Цифрлық тәуекелдерді талдау және аргументация",
+        "Цифрлық қауіпсіздік қағидаттарын түсіну",
+        "Күмәнді хат алған жағдайда әрекет ету алгоритмі",
+        "Мектептің киберқауіпсіздігін қамтамасыз ету бойынша ұсыныстар",
+    ],
+    "Оқу сауаттылығы": [
+        "Мәтінді түсіну және пайдалану",
+        "Шешімнің дәлелділігі мен логикасы",
+        "Ұсынылған қадамдардың іске асырылу мүмкіндігі",
+        "Тапсырманың толық орындалуы",
+        "Топтық жұмыстың үйлесімділігі және рәсімделуі",
+    ],
+    "Экологиялық сауаттылық": [
+        "Шешімнің негізделуі",
+        "Этикалық жетілу",
+        "Ымыраның креативтілігі",
+        "Коммуникация тиімділігі",
+        "Педагогикалық әлеует",
+    ],
+}
 
 
 # ---------------- SAFE HTML RENDER ----------------
@@ -46,8 +111,6 @@ render_html("""
 .lbrow.top2 { background: rgba(59,130,246,0.12); }
 .lbrow.top3 { background: rgba(245,158,11,0.12); }
 .badchip { display:inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); font-size: 0.85rem; color: #9aa0a6; margin-left: 10px; }
-
-canvas { border-radius: 14px; }
 </style>
 """)
 
@@ -75,25 +138,16 @@ def caption_bi(kk: str, ru: str):
 
 # ---------------- STORAGE ----------------
 def default_state():
+    scores = {}
+    for d in DIRECTIONS:
+        scores[d] = {c: 0 for c in CRITERIA_BY_DIRECTION[d]}
     return {
-        "teams": DEFAULT_TEAMS,
-        "criteria": DEFAULT_CRITERIA,
-        "scores": {t: {c: 0 for c in DEFAULT_CRITERIA} for t in DEFAULT_TEAMS},
+        "directions": DIRECTIONS,
+        "criteria_by_direction": CRITERIA_BY_DIRECTION,
+        "scores": scores,
+        "presentation_order": list(DIRECTIONS),
         "updated_at": None,
     }
-
-def load_state():
-    if not os.path.exists(DATA_FILE):
-        s = default_state()
-        save_state(s)
-        return s
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        s = default_state()
-        save_state(s)
-        return s
 
 def save_state(state: dict):
     state["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -102,169 +156,192 @@ def save_state(state: dict):
         json.dump(state, f, ensure_ascii=False, indent=2)
     os.replace(tmp, DATA_FILE)
 
+def load_state():
+    if not os.path.exists(DATA_FILE):
+        s = default_state()
+        save_state(s)
+        return s
+
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            s = json.load(f)
+    except Exception:
+        s = default_state()
+        save_state(s)
+        return s
+
+    # If old format or mismatched structure -> reset to fixed config
+    if "directions" not in s or "criteria_by_direction" not in s or "scores" not in s:
+        s = default_state()
+        save_state(s)
+        return s
+
+    # Force fixed config (in case someone edited the JSON)
+    s["directions"] = list(DIRECTIONS)
+    s["criteria_by_direction"] = CRITERIA_BY_DIRECTION
+
+    # Ensure scores contain all directions + criteria
+    if "scores" not in s or not isinstance(s["scores"], dict):
+        s["scores"] = {}
+
+    for d in DIRECTIONS:
+        if d not in s["scores"] or not isinstance(s["scores"][d], dict):
+            s["scores"][d] = {}
+        for c in CRITERIA_BY_DIRECTION[d]:
+            s["scores"][d][c] = int(s["scores"][d].get(c, 0))
+
+        # Remove any extra criteria keys
+        for extra in list(s["scores"][d].keys()):
+            if extra not in CRITERIA_BY_DIRECTION[d]:
+                del s["scores"][d][extra]
+
+    # Presentation order
+    if "presentation_order" not in s or not isinstance(s["presentation_order"], list):
+        s["presentation_order"] = list(DIRECTIONS)
+    else:
+        # Keep only valid directions, append missing ones
+        s["presentation_order"] = [x for x in s["presentation_order"] if x in DIRECTIONS]
+        for d in DIRECTIONS:
+            if d not in s["presentation_order"]:
+                s["presentation_order"].append(d)
+
+    return s
+
 
 # ---------------- COMPUTE ----------------
-def compute_table(state: dict) -> pd.DataFrame:
-    teams = state["teams"]
-    criteria = state["criteria"]
+def totals_df(state: dict) -> pd.DataFrame:
     rows = []
-    for t in teams:
-        row = {"Team": t}
-        total = 0
-        for c in criteria:
-            v = int(state["scores"][t].get(c, 0))
-            row[c] = v
-            total += v
-        row["Total"] = total
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-
-    # tie-break: Total desc -> last criterion desc -> Team name
-    if len(criteria) >= 1 and criteria[-1] in df.columns:
-        df = df.sort_values(["Total", criteria[-1], "Team"], ascending=[False, False, True])
-    else:
-        df = df.sort_values(["Total", "Team"], ascending=[False, True])
-
-    df.reset_index(drop=True, inplace=True)
+    for d in state["directions"]:
+        total = sum(int(state["scores"][d].get(c, 0)) for c in state["criteria_by_direction"][d])
+        rows.append({"Бағыт / Направление": d, "Total": total})
+    df = pd.DataFrame(rows).sort_values(["Total", "Бағыт / Направление"], ascending=[False, True]).reset_index(drop=True)
     return df
 
-def criterion_averages(df: pd.DataFrame, criteria: list[str]) -> pd.DataFrame:
-    out = pd.DataFrame({"Criterion": criteria, "Average": [float(df[c].mean()) for c in criteria]})
-    return out.sort_values("Average", ascending=False).reset_index(drop=True)
+def details_long_df(state: dict) -> pd.DataFrame:
+    rows = []
+    for d in state["directions"]:
+        for i, c in enumerate(state["criteria_by_direction"][d], start=1):
+            rows.append({
+                "Бағыт / Направление": d,
+                "№": i,
+                "Criterion / Критерий": c,
+                "Score": int(state["scores"][d].get(c, 0)),
+            })
+    return pd.DataFrame(rows)
 
+def reset_scores_only(state: dict):
+    for d in state["directions"]:
+        for c in state["criteria_by_direction"][d]:
+            state["scores"][d][c] = 0
 
-# ---------------- RADAR ----------------
-def plot_radar_team_vs_avg(team_name, team_vals, avg_vals, criteria, max_val=2):
-    n = len(criteria)
-    angles = [i / float(n) * 2 * pi for i in range(n)]
-    angles += angles[:1]
-
-    team = list(team_vals) + [team_vals[0]]
-    avg = list(avg_vals) + [avg_vals[0]]
-
-    fig, ax = plt.subplots(figsize=(3.6, 3.6), subplot_kw=dict(polar=True))
-    ax.set_theta_offset(pi / 2)
-    ax.set_theta_direction(-1)
-
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(criteria, fontsize=9)
-
-    ax.set_ylim(0, max_val)
-    ax.set_yticks([0, 1, 2])
-    ax.set_yticklabels(["0", "1", "2"], fontsize=8)
-
-    ax.grid(alpha=0.25)
-    ax.spines["polar"].set_alpha(0.25)
-
-    ax.plot(angles, avg, linewidth=2, linestyle="dashed", alpha=0.9, label="Орташа / Среднее")
-    ax.fill(angles, avg, alpha=0.06)
-
-    ax.plot(angles, team, linewidth=2.2, alpha=0.95, label="Команда / Команда")
-    ax.fill(angles, team, alpha=0.12)
-
-    ax.set_title(team_name, fontsize=12, fontweight="bold", pad=26)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.10), ncol=2, frameon=False, fontsize=9)
-    fig.tight_layout()
-    return fig
-
-
-# ---------------- EXPORT ----------------
-def to_excel_bytes(df_full: pd.DataFrame, updated_at: str) -> bytes:
+def to_excel_bytes(df_totals: pd.DataFrame, df_details: pd.DataFrame, updated_at: str) -> bytes:
     buf = BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        df_full.to_excel(writer, index=False, sheet_name="Results")
+        df_totals.to_excel(writer, index=False, sheet_name="Totals")
+        df_details.to_excel(writer, index=False, sheet_name="Details")
         pd.DataFrame({"updated_at": [updated_at]}).to_excel(writer, index=False, sheet_name="Meta")
     buf.seek(0)
     return buf.getvalue()
+
+
+# ---------------- AUTH ----------------
+def require_pin_if_needed():
+    if not PIN_REQUIRED:
+        return
+    entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password", key="pin_input")
+    if entered != PIN:
+        st.warning("PIN енгізіңіз / Введите PIN")
+        st.stop()
 
 
 # ---------------- APP ----------------
 state = load_state()
 
 st.sidebar.markdown("### Режим / Режим")
-mode = st.sidebar.radio(" ", ["Әділқазы / Жюри", "Экран / Экран"], index=0, key="mode_radio")
+mode = st.sidebar.radio(
+    " ",
+    ["Баптау / Настройки", "Әділқазы / Жюри", "Экран / Экран"],
+    index=0,
+    key="mode_radio",
+)
 
-# ---------------- ADMIN ----------------
-if mode.startswith("Әділқазы"):
-    if PIN_REQUIRED:
-        entered = st.sidebar.text_input("PIN (Әділқазы / Жюри)", type="password", key="pin_input")
-        if entered != PIN:
-            st.warning("PIN енгізіңіз / Введите PIN")
-            st.stop()
+# ---------------- SETTINGS ----------------
+if mode.startswith("Баптау"):
+    require_pin_if_needed()
+
+    bi_h1("Баптау", "Настройки")
+    caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
+    render_html("<hr class='hr'>")
+
+    bi_h2("Көрсету реті (рандомайзер)", "Порядок выступления (рандомайзер)")
+
+    # show current order
+    def order_html(order_list: list[str]) -> str:
+        s = "<div class='lb'>"
+        for i, name in enumerate(order_list, start=1):
+            s += f"<div class='lbrow'><div class='rank'>#{i}</div><div class='team'>{name}</div><div class='score'> </div></div>"
+        s += "</div>"
+        return s
+
+    render_html(order_html(state["presentation_order"]))
+
+    c1, c2, c3 = st.columns([1, 1, 2])
+    placeholder = st.empty()
+
+    if c1.button("🎲 Араластыру / Перемешать", key="shuffle_btn"):
+        order = list(state["presentation_order"])
+        # small visual shuffle animation
+        for _ in range(10):
+            random.shuffle(order)
+            with placeholder:
+                render_html(order_html(order))
+            time.sleep(0.10)
+
+        state["presentation_order"] = order
+        save_state(state)
+        st.success("Жаңа реттілік сақталды / Новый порядок сохранён")
+        st.rerun()
+
+    if c2.button("↩ Қалпына келтіру / Сброс", key="reset_order_btn"):
+        state["presentation_order"] = list(DIRECTIONS)
+        save_state(state)
+        st.success("Әдепкі реттілік / Порядок по умолчанию")
+        st.rerun()
+
+    render_html("<hr class='hr'>")
+    bi_h2("Бағыттар мен критерийлер (бекітілген)", "Направления и критерии (фиксированные)")
+    with st.expander("👀 Көру / Смотреть"):
+        for d in DIRECTIONS:
+            st.markdown(f"**{d}**")
+            for i, c in enumerate(CRITERIA_BY_DIRECTION[d], start=1):
+                st.write(f"{i}. {c}")
+            st.write("")
+
+# ---------------- JURY ----------------
+elif mode.startswith("Әділқазы"):
+    require_pin_if_needed()
 
     bi_h1("Әділқазы панелі", "Панель жюри")
     caption_bi(f"Жаңартылды: {state.get('updated_at')}", f"Обновлено: {state.get('updated_at')}")
     render_html("<hr class='hr'>")
 
-    bi_h2("Атауларды баптау", "Настройка названий")
-    with st.expander("✏️ Командалар және критерийлер / Команды и критерии"):
-        teams_text = st.text_area(
-            "Командалар (әр жолға бір команда) / Команды (по одной в строке)",
-            "\n".join(state["teams"]),
-            height=160,
-            key="teams_text",
-        )
-        criteria_text = st.text_area(
-            "Критерийлер (әр жолға бір критерий) / Критерии (по одному в строке)",
-            "\n".join(state["criteria"]),
-            height=160,
-            key="criteria_text",
-        )
-
-        cA, cB = st.columns([1, 2])
-        if cA.button("✅ Сақтау / Сохранить", key="save_names_btn"):
-            teams = [x.strip() for x in teams_text.splitlines() if x.strip()]
-            criteria = [x.strip() for x in criteria_text.splitlines() if x.strip()]
-
-            if len(teams) != 7:
-                st.error("7 команда болуы керек / Должно быть 7 команд")
-                st.stop()
-            if len(criteria) != 5:
-                st.error("5 критерий болуы керек / Должно быть 5 критериев")
-                st.stop()
-
-            new_scores = {t: {c: 0 for c in criteria} for t in teams}
-            for t in teams:
-                for c in criteria:
-                    if t in state["scores"] and c in state["scores"][t]:
-                        new_scores[t][c] = int(state["scores"][t][c])
-
-            state["teams"] = teams
-            state["criteria"] = criteria
-            state["scores"] = new_scores
-            save_state(state)
-            st.success("Сақталды / Сохранено")
-            st.rerun()
-
-        if cB.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_expander_btn"):
-            state = default_state()
-            save_state(state)
-            st.success("Қайтарылды / Сброс выполнен")
-            st.rerun()
-
-    render_html("<hr class='hr'>")
     bi_h2("Бағаларды енгізу (0–2)", "Ввод баллов (0–2)")
 
-    teams = state["teams"]
-    criteria = state["criteria"]
-
-    for t in teams:
+    for d in state["directions"]:
         with st.container(border=True):
-            cols = st.columns([2] + [1] * len(criteria))
-            cols[0].markdown(f"### {t}")
-            for i, c in enumerate(criteria):
-                input_key = f"{t}__{c}"
-                default_val = int(state["scores"][t].get(c, 0))
-                val = cols[i + 1].number_input(
+            st.markdown(f"### {d}")
+            for c in state["criteria_by_direction"][d]:
+                key = f"{d}__{c}"
+                default_val = int(state["scores"][d].get(c, 0))
+                v = st.number_input(
                     c,
                     min_value=0,
                     max_value=MAX_PER_CRITERION,
                     step=1,
                     value=default_val,
-                    key=input_key,
+                    key=key,
                 )
-                state["scores"][t][c] = int(val)
+                state["scores"][d][c] = int(v)
 
     c1, c2, _ = st.columns([1, 1, 2])
 
@@ -273,13 +350,13 @@ if mode.startswith("Әділқазы"):
         st.success("Сақталды / Сохранено")
         st.rerun()
 
-    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_bottom_btn"):
-        state = default_state()
+    if c2.button("↩ Барлығын 0-ге қайтару / Сбросить всё в 0", key="reset_scores_btn"):
+        reset_scores_only(state)
         save_state(state)
         st.success("Қайтарылды / Сброс выполнен")
         st.rerun()
 
-# ---------------- PUBLIC / SCREEN ----------------
+# ---------------- SCREEN ----------------
 else:
     bi_h1("Хакатон нәтижелері", "Результаты хакатона")
     caption_bi(
@@ -287,66 +364,29 @@ else:
         f"Последнее обновление: {state.get('updated_at')}",
     )
 
-    df = compute_table(state)
-    criteria = state["criteria"]
     updated_at = state.get("updated_at") or ""
 
+    # Presentation order
     render_html("<hr class='hr'>")
-    bi_h2(
-        "Критерийлер бойынша орташа балл (барлық командалар)",
-        "Средний балл по критериям (по всем командам)",
-    )
+    bi_h2("Көрсету реті (жеребе)", "Порядок выступления (жеребьёвка)")
+    order = state.get("presentation_order") or list(DIRECTIONS)
 
-    av = criterion_averages(df, criteria).copy()
-    av["Average"] = av["Average"].round(2)
+    order_rows = "<div class='lb'>"
+    for i, name in enumerate(order, start=1):
+        order_rows += f"<div class='lbrow'><div class='rank'>#{i}</div><div class='team'>{name}</div><div class='score'></div></div>"
+    order_rows += "</div>"
+    render_html(order_rows)
 
-    chart = (
-        alt.Chart(av)
-        .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
-        .encode(
-            x=alt.X("Criterion:N", sort=None, title=None, axis=alt.Axis(labelAngle=-30)),
-            y=alt.Y("Average:Q", title="Орташа / Среднее", scale=alt.Scale(domain=[0, MAX_PER_CRITERION])),
-            color=alt.Color(
-                "Average:Q",
-                scale=alt.Scale(domain=[0, MAX_PER_CRITERION], range=["#F59E0B", "#22C55E"]),
-                legend=None,
-            ),
-            tooltip=[alt.Tooltip("Criterion:N", title="Критерий"), alt.Tooltip("Average:Q", title="Орташа / Среднее")],
-        )
-        .properties(height=290)
-    )
-    st.altair_chart(chart, use_container_width=True)
-
-    render_html("<hr class='hr'>")
-    bi_h2(
-        "Командалардың профилі (радар диаграмма, шкала 0–2)",
-        "Профиль команд (радар-диаграмма, шкала 0–2)",
-    )
-
-    avg_vals = [float(df[c].mean()) for c in criteria]
-    teams_sorted = list(df["Team"].values)
-
-    per_row = 3
-    for start in range(0, len(teams_sorted), per_row):
-        cols = st.columns(per_row)
-        for j in range(per_row):
-            idx = start + j
-            if idx >= len(teams_sorted):
-                break
-            team = teams_sorted[idx]
-            row = df.loc[df["Team"] == team].iloc[0]
-            team_vals = [int(row[c]) for c in criteria]
-            fig = plot_radar_team_vs_avg(team, team_vals, avg_vals, criteria, max_val=MAX_PER_CRITERION)
-            cols[j].pyplot(fig, clear_figure=True)
-
+    # Leaderboard
     render_html("<hr class='hr'>")
     bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
+    df_tot = totals_df(state)
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     rows_html = "<div class='lb'>"
-    for i, row in df.reset_index(drop=True).iterrows():
+    for i, row in df_tot.reset_index(drop=True).iterrows():
         rank = i + 1
-        team = row["Team"]
+        name = row["Бағыт / Направление"]
         total = int(row["Total"])
         badge = f"{rank}-орын / {rank} место"
         left = medals.get(rank, f"#{rank}")
@@ -354,11 +394,47 @@ else:
         if rank == 1: cls += " top1"
         elif rank == 2: cls += " top2"
         elif rank == 3: cls += " top3"
-        rows_html += f"<div class='{cls}'><div class='rank'>{left}</div><div class='team'>{team}<span class='badchip'>{badge}</span></div><div class='score'>{total}</div></div>"
+        rows_html += (
+            f"<div class='{cls}'>"
+            f"<div class='rank'>{left}</div>"
+            f"<div class='team'>{name}<span class='badchip'>{badge}</span></div>"
+            f"<div class='score'>{total}</div>"
+            f"</div>"
+        )
     rows_html += "</div>"
     render_html(rows_html)
 
-    excel_bytes = to_excel_bytes(df.copy(), updated_at)
+    # Per-direction criteria charts
+    render_html("<hr class='hr'>")
+    bi_h2("Әр бағыт бойынша критерий ұпайлары", "Баллы по критериям для каждого направления")
+
+    per_row = 2
+    for start in range(0, len(order), per_row):
+        cols = st.columns(per_row)
+        for j in range(per_row):
+            idx = start + j
+            if idx >= len(order):
+                break
+            d = order[idx]
+            crits = state["criteria_by_direction"][d]
+            scores = [int(state["scores"][d].get(c, 0)) for c in crits]
+            df_one = pd.DataFrame({"Criterion": crits, "Score": scores})
+
+            chart = (
+                alt.Chart(df_one)
+                .mark_bar(cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
+                .encode(
+                    x=alt.X("Criterion:N", sort=None, title=None, axis=alt.Axis(labelAngle=-25)),
+                    y=alt.Y("Score:Q", title=None, scale=alt.Scale(domain=[0, MAX_PER_CRITERION])),
+                    tooltip=[alt.Tooltip("Criterion:N", title="Критерий"), alt.Tooltip("Score:Q", title="Балл")],
+                )
+                .properties(height=260, title=d)
+            )
+            cols[j].altair_chart(chart, use_container_width=True)
+
+    # Export
+    df_details = details_long_df(state)
+    excel_bytes = to_excel_bytes(df_tot.copy(), df_details.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
     st.download_button(
         label="⬇️ Нәтижені Excel ретінде жүктеу / Скачать результаты в Excel",
