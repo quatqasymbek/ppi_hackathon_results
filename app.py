@@ -12,7 +12,6 @@ from math import pi
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Hackathon Results", layout="wide")
 
@@ -128,7 +127,6 @@ ALIASES = {
     "Қаржылық сауаттылық": "Қаржылық сауаттылық",
     "Цифровая грамотность": "Цифрлық сауаттылық",
     "Цифрлық сауаттылық": "Цифрлық сауаттылық",
-    "Цифрлық қауіпсіздік / Цифровая безопасность": "Цифрлық сауаттылық",
     "Читательская грамотность": "Оқу сауаттылығы",
     "Оқырмандық сауаттылық": "Оқу сауаттылығы",
     "Оқу сауаттылығы": "Оқу сауаттылығы",
@@ -137,7 +135,7 @@ ALIASES = {
 }
 
 
-# ---------------- Query params (use ONLY st.query_params) ----------------
+# ---------------- Query params ----------------
 def qp_get(key: str, default: str | None = None) -> str | None:
     v = st.query_params.get(key, default)
     if isinstance(v, list):
@@ -166,28 +164,28 @@ def apply_base_css():
 <style>
 .block-container { padding-top: 1.2rem; padding-bottom: 2.0rem; max-width: 1400px; }
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
-.hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
+.hr { height: 1px; background: rgba(0,0,0,0.08); border: none; margin: 1.2rem 0; }
 
 .lb { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.lbrow { display: grid; grid-template-columns: 64px 1fr 110px; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 12px 14px; background: rgba(255,255,255,0.03); }
+.lbrow { display: grid; grid-template-columns: 64px 1fr 110px; align-items: center; gap: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 12px 14px; background: rgba(0,0,0,0.015); }
 .lbrow .rank { font-weight: 950; font-size: 1.05rem; opacity: 0.95; }
 .lbrow .team { line-height: 1.1; }
 .lbrow .team .kk { font-weight: 900; font-size: 1.02rem; }
 .lbrow .team .ru { color:#8a8a8a; font-size: 0.90rem; margin-top: 2px; }
 .lbrow .score { text-align: right; font-weight: 950; font-size: 1.15rem; }
-.lbrow.top1 { background: rgba(34,197,94,0.12); }
-.lbrow.top2 { background: rgba(59,130,246,0.12); }
-.lbrow.top3 { background: rgba(245,158,11,0.12); }
-.badchip { display:inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); font-size: 0.85rem; color: #9aa0a6; margin-left: 10px; }
+.badchip { display:inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.10); background: rgba(0,0,0,0.03); font-size: 0.85rem; color: #6f7680; margin-left: 10px; }
 
 .drawwrap { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
-.drawcard { border: 1px solid rgba(255,255,255,0.10); border-radius: 18px; padding: 14px; background: rgba(255,255,255,0.03); }
+.drawcard { border: 1px solid rgba(0,0,0,0.08); border-radius: 18px; padding: 14px; background: rgba(0,0,0,0.015); }
 .drawtitle { font-weight: 950; font-size: 1.05rem; margin-bottom: 8px; }
-.drawitem { border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; padding: 10px 12px; margin: 8px 0; background: rgba(255,255,255,0.02); }
-.drawitem.hl { border-color: rgba(34,197,94,0.60); box-shadow: 0 0 0 3px rgba(34,197,94,0.20); background: rgba(34,197,94,0.08); }
-.drawitem.picked { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.07); }
-.drawbadge { display:inline-block; font-size: 0.82rem; color:#9aa0a6; border:1px solid rgba(255,255,255,0.10); padding:2px 10px; border-radius:999px; margin-left: 10px; }
-.commitbox { border:1px dashed rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+.drawitem { border: 1px solid rgba(0,0,0,0.08); border-radius: 14px; padding: 10px 12px; margin: 8px 0; background: rgba(0,0,0,0.01); }
+.drawitem.hl { border-color: rgba(34,197,94,0.50); box-shadow: 0 0 0 3px rgba(34,197,94,0.12); background: rgba(34,197,94,0.06); }
+.drawitem.picked { border-color: rgba(59,130,246,0.30); background: rgba(59,130,246,0.05); }
+.drawbadge { display:inline-block; font-size: 0.82rem; color:#6f7680; border:1px solid rgba(0,0,0,0.08); padding:2px 10px; border-radius:999px; margin-left: 10px; }
+.commitbox { border:1px dashed rgba(0,0,0,0.12); border-radius: 16px; padding: 10px 12px; background: rgba(0,0,0,0.01); }
+
+/* Make slider labels less tall */
+div[data-testid="stSlider"] { padding-top: 0.15rem; padding-bottom: 0.05rem; }
 </style>
 """)
 
@@ -201,12 +199,11 @@ header { visibility: hidden; }
 [data-testid="stSidebar"] { display: none !important; }
 [data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
-.block-container { padding-top: 0.6rem !important; max-width: 1600px !important; }
+.block-container { padding-top: 0.8rem !important; max-width: 1600px !important; }
 </style>
 """)
 
 def apply_normal_chrome_css_reset():
-    # Ensures the UI comes back after exiting fullscreen view (in case CSS sticks in DOM).
     render_html("""
 <style>
 #MainMenu { visibility: visible; }
@@ -224,7 +221,7 @@ header { visibility: visible; }
 def bi_h1(kk: str, ru: str):
     render_html(f"""
 <div style="line-height:1.1">
-  <div style="font-size:2.05rem;font-weight:950;margin:0">{kk}</div>
+  <div style="font-size:2.05rem;font-weight:950;margin:0;color:#111827">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
 """)
@@ -232,7 +229,7 @@ def bi_h1(kk: str, ru: str):
 def bi_h2(kk: str, ru: str):
     render_html(f"""
 <div style="line-height:1.15;margin-top:0.2rem">
-  <div style="font-size:1.22rem;font-weight:900;margin:0">{kk}</div>
+  <div style="font-size:1.22rem;font-weight:900;margin:0;color:#111827">{kk}</div>
   <div class="small-muted">{ru}</div>
 </div>
 """)
@@ -479,41 +476,33 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
     return final_order
 
 
-# ---------------- RADAR (cleaner) ----------------
+# ---------------- RADAR ----------------
 def wrap_label(s: str, width: int = 22) -> str:
     return "\n".join(textwrap.wrap(s, width=width)) if len(s) > width else s
 
-def plot_radar(direction_kk: str, values: list[int], max_val: int = 2, big: bool = False):
+def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
     crits = CRITERIA_BI[direction_kk]
     labels = [
         f"{i+1}. {wrap_label(c['kk'], 22)}\n{wrap_label(c['ru'], 22)}"
         for i, c in enumerate(crits)
     ]
-
     n = len(labels)
     angles = [i / float(n) * 2 * pi for i in range(n)]
     angles += angles[:1]
     vals = list(values) + [values[0]]
 
-    fig_size = 7.4 if big else 6.6
-    fig, ax = plt.subplots(figsize=(fig_size, fig_size), subplot_kw=dict(polar=True))
-
+    fig, ax = plt.subplots(figsize=(6.4, 6.4), subplot_kw=dict(polar=True))
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontsize=9)
-
-    # Push criterion labels outward (reduces overlap with plot)
-    ax.tick_params(axis="x", pad=40 if big else 34)
+    ax.tick_params(axis="x", pad=34)
 
     ax.set_ylim(0, max_val)
     ax.set_yticks([0, 1, 2])
     ax.set_yticklabels(["0 ұпай\n0 балл", "1 ұпай\n1 балл", "2 ұпай\n2 балл"], fontsize=10)
-
-    # Move radial tick labels away from top label
     ax.set_rlabel_position(90)
-    ax.tick_params(axis="y", pad=10)
 
     ax.grid(alpha=0.22)
     ax.yaxis.grid(alpha=0.30, linewidth=1.05)
@@ -524,42 +513,15 @@ def plot_radar(direction_kk: str, values: list[int], max_val: int = 2, big: bool
 
     ax.set_title(
         f"{direction_kk}\n{DIRECTION_RU.get(direction_kk, '')}",
-        fontsize=14 if big else 13,
+        fontsize=13,
         fontweight="bold",
-        pad=34 if big else 30,
+        pad=28,
     )
-
-    # More breathing room so labels don't get cut
     fig.subplots_adjust(top=0.86, bottom=0.06, left=0.04, right=0.96)
     return fig
 
 
-# ---------------- CONFETTI ----------------
-def launch_confetti_once():
-    if st.session_state.get("_confetti_done"):
-        return
-    st.session_state["_confetti_done"] = True
-    components.html(
-        """
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-<script>
-(function() {
-  function burst() {
-    confetti({particleCount: 120, spread: 75, origin: { y: 0.65 }});
-    confetti({particleCount: 80, spread: 120, origin: { x: 0.2, y: 0.55 }});
-    confetti({particleCount: 80, spread: 120, origin: { x: 0.8, y: 0.55 }});
-  }
-  burst();
-  setTimeout(burst, 450);
-  setTimeout(burst, 900);
-})();
-</script>
-        """,
-        height=0,
-    )
-
-
-# ---------------- Sections renderers ----------------
+# ---------------- Render helpers ----------------
 def render_order_list(state: dict, show_heading: bool = True):
     if show_heading:
         bi_h2(
@@ -583,15 +545,8 @@ def render_leaderboard(state: dict, show_heading: bool = True):
         name = row["Бағыт"]
         total = int(row["Total"])
         badge = f"{rank}-орын"
-        cls = "lbrow"
-        if rank == 1:
-            cls += " top1"
-        elif rank == 2:
-            cls += " top2"
-        elif rank == 3:
-            cls += " top3"
         rows_html += (
-            f"<div class='{cls}'>"
+            f"<div class='lbrow'>"
             f"<div class='rank'>{rank}</div>"
             f"<div class='team'><div class='kk'>{name}<span class='badchip'>{badge}</span></div>"
             f"<div class='ru'>{DIRECTION_RU.get(name,'')}</div></div>"
@@ -601,9 +556,9 @@ def render_leaderboard(state: dict, show_heading: bool = True):
     rows_html += "</div>"
     render_html(rows_html)
 
-def render_radars(state: dict, order: list[str], two_cols: bool = True, big: bool = False):
+def render_radars_normal(state: dict, order: list[str]):
     bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
-    per_row = 2 if two_cols else 1
+    per_row = 2
     for start in range(0, len(order), per_row):
         cols = st.columns(per_row)
         for j in range(per_row):
@@ -613,9 +568,8 @@ def render_radars(state: dict, order: list[str], two_cols: bool = True, big: boo
             d = order[idx]
             vals = [int(x) for x in state["scores"][d]]
             with cols[j]:
-                # Light "card" border to separate plots visually
                 with st.container(border=True):
-                    fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION, big=big)
+                    fig = plot_radar(d, vals, MAX_PER_CRITERION)
                     st.pyplot(fig, clear_figure=True)
 
 
@@ -625,22 +579,12 @@ apply_base_css()
 view = qp_get("view", None)
 fs = qp_get("fs", "0") == "1"
 
-# Fullscreen view mode
-if view in {"order", "leaderboard", "radars"}:
+# Fullscreen view mode ONLY for: order + leaderboard
+if view in {"order", "leaderboard"}:
     if fs:
         apply_fullscreen_css()
 
-    # EXIT button so user can escape without restarting and without re-entering PIN
-    top = st.container()
-    with top:
-        c1, c2 = st.columns([1, 9])
-        if c1.button("Қайту", use_container_width=True, key="exit_fullscreen"):
-            clear_view()
-            st.rerun()
-        c2.caption("Назад")
-
     state = load_state()
-    order = state.get("presentation_order") or list(DIRECTIONS)
 
     if view == "order":
         bi_h1("Презентациялар кезектілігі", "Очередность презентаций")
@@ -651,20 +595,20 @@ if view in {"order", "leaderboard", "radars"}:
         bi_h1("Нәтижелер", "Результаты")
         render_html("<hr class='hr'>")
         render_leaderboard(state, show_heading=True)
-        if fs:
-            launch_confetti_once()
 
-    elif view == "radars":
-        bi_h1("Нәтижелер", "Результаты")
-        render_html("<hr class='hr'>")
-        # In fullscreen radar view: 1 column, bigger plot, scroll naturally
-        render_radars(state, order, two_cols=False, big=True)
+    # Bottom-right "Қайту" button (placed at the end, right aligned)
+    render_html("<div style='height: 18px'></div>")
+    c_sp, c_btn = st.columns([10, 2])
+    with c_btn:
+        if st.button("Қайту", use_container_width=True, key="exit_fullscreen"):
+            clear_view()
+            st.rerun()
+        render_html("<div class='small-muted' style='text-align:right;margin-top:4px'>Назад</div>")
 
     st.stop()
 
-# Normal app mode (force UI back, just in case)
+# Normal app mode
 apply_normal_chrome_css_reset()
-
 show_logo_sidebar_and_main(show_in_main=True)
 
 state = load_state()
@@ -695,7 +639,7 @@ if mode == "Презентациялар кезектілігі":
 </div>
 """)
 
-    c1, c2, c3 = st.columns([1.2, 1.1, 2.7])
+    c1, c2, _ = st.columns([1.2, 1.1, 2.7])
 
     do_draw = c1.button("Жеребе тарту", key="draw_btn", use_container_width=True)
     c1.caption("Провести жеребьёвку")
@@ -740,11 +684,10 @@ if mode == "Презентациялар кезектілігі":
     render_html("<hr class='hr'>")
     render_order_list(state, show_heading=True)
 
-    cfs1, cfs2 = st.columns([1, 5])
+    cfs1, _ = st.columns([1, 5])
     if cfs1.button("Толық экран", use_container_width=True, key="fs_order"):
         set_view("order", True)
         st.rerun()
-    cfs2.caption("Тек осы блок. URL жасыру үшін F11 басыңыз.")
 
 # ---------------- JURY ----------------
 elif mode == "Бағалау":
@@ -769,17 +712,21 @@ elif mode == "Бағалау":
 
             for i, crit in enumerate(CRITERIA_BI[d], start=1):
                 render_html(f"<div><b>{i}. {crit['kk']}</b><div class='small-muted'>{crit['ru']}</div></div>")
-                st.slider(
-                    label=f"{d}-{i}",
-                    min_value=0,
-                    max_value=MAX_PER_CRITERION,
-                    value=int(st.session_state.get(score_key(d, i - 1), 0)),
-                    step=1,
-                    key=score_key(d, i - 1),
-                    label_visibility="collapsed",
-                )
 
-    c1, c2, c3 = st.columns([1, 1, 2])
+                # SHORTER slider line: put slider in a narrower column
+                s_col, _ = st.columns([1.2, 2.8])
+                with s_col:
+                    st.slider(
+                        label=f"{d}-{i}",
+                        min_value=0,
+                        max_value=MAX_PER_CRITERION,
+                        value=int(st.session_state.get(score_key(d, i - 1), 0)),
+                        step=1,
+                        key=score_key(d, i - 1),
+                        label_visibility="collapsed",
+                    )
+
+    c1, c2, _ = st.columns([1, 1, 2])
     do_save = c1.button("Сақтау", key="save_scores_btn", use_container_width=True)
     c1.caption("Сохранить")
     do_reset = c2.button("Барлығын 0-ге қайтару", key="reset_scores_btn", use_container_width=True)
@@ -787,9 +734,7 @@ elif mode == "Бағалау":
 
     if do_save:
         for d in DIRECTIONS:
-            arr = []
-            for i in range(len(CRITERIA_BI[d])):
-                arr.append(int(st.session_state.get(score_key(d, i), 0)))
+            arr = [int(st.session_state.get(score_key(d, i), 0)) for i in range(len(CRITERIA_BI[d]))]
             state["scores"][d] = arr
         save_state(state)
         st.success("Сақталды.")
@@ -818,23 +763,18 @@ else:
     order = state.get("presentation_order") or list(DIRECTIONS)
 
     render_html("<hr class='hr'>")
-    render_radars(state, order, two_cols=True, big=False)
-
-    cfs1, cfs2 = st.columns([1, 5])
-    if cfs1.button("Толық экран", use_container_width=True, key="fs_radars"):
-        set_view("radars", True)
-        st.rerun()
-    cfs2.caption("Радарлар (скролл болады). URL жасыру үшін F11 басыңыз.")
+    # Fullscreen for radars removed (requested). Only show normal radars.
+    render_radars_normal(state, order)
 
     render_html("<hr class='hr'>")
     render_leaderboard(state, show_heading=True)
 
-    cfs3, cfs4 = st.columns([1, 5])
+    cfs3, _ = st.columns([1, 5])
     if cfs3.button("Толық экран", use_container_width=True, key="fs_leaderboard"):
         set_view("leaderboard", True)
         st.rerun()
-    cfs4.caption("Рейтинг толық экранда конфетти қосылады. URL жасыру үшін F11 басыңыз.")
 
+    # Download at very bottom
     df_tot = totals_df(state)
     df_det = details_df(state)
     excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
