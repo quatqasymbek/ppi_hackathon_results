@@ -24,7 +24,6 @@ DATA_FILE = "scores.json"
 PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
-# Put your event logo file next to app.py (recommended).
 LOGO_CANDIDATES = [
     "event_logo.png",
     "Логотип-рус.png",
@@ -33,14 +32,13 @@ LOGO_CANDIDATES = [
     "/mnt/data/ChatGPT Image 19 дек. 2025 г., 19_51_39.png",
 ]
 
-# Бағыттар (KK main) + Russian subtitle mapping
 DIRECTIONS = [
     "Жаратылыстану-ғылыми сауаттылық",
     "Математикалық сауаттылық",
     "Мәдениетаралық сауаттылық",
     "Қаржылық сауаттылық",
     "Цифрлық сауаттылық",
-    "Оқу сауаттылығы",  # renamed
+    "Оқу сауаттылығы",
     "Экологиялық сауаттылық",
 ]
 DIRECTION_RU = {
@@ -53,7 +51,6 @@ DIRECTION_RU = {
     "Экологиялық сауаттылық": "Экологическая грамотность",
 }
 
-# критерийлер (each item has KK + RU)
 CRITERIA_BI = {
     "Жаратылыстану-ғылыми сауаттылық": [
         {"kk": "Суды сүзудің тиімділігі", "ru": "Эффективность фильтрации воды"},
@@ -64,17 +61,26 @@ CRITERIA_BI = {
     ],
     "Математикалық сауаттылық": [
         {"kk": "Жалпы ауданды табу", "ru": "Находит общую площадь"},
-        {"kk": "Камераның бақылауына кірмейтін ауданның пайызын есептеу", "ru": "Вычисляет процент площади не попадающих под камеру"},
-        {"kk": "Камераның бақылауына кіретін аудандарды салыстыру", "ru": "Сравнивает площади, попадающих под камеру"},
-        {"kk": "Камералардың максималды санын есептеу", "ru": "Вычисляет максимальное количество камер"},
-        {"kk": "Камералардың минималды санын есептеу", "ru": "Вычисляет минимальное количество камер"},
+        {"kk": "Камераның бақылауына кірмейтін ауданның пайызын есептеу",
+         "ru": "Вычисляет процент площади не попадающих под камеру"},
+        {"kk": "Камераның бақылауына кіретін аудандарды салыстыру",
+         "ru": "Сравнивает площади, попадающих под камеру"},
+        {"kk": "Камералардың максималды санын есептеу",
+         "ru": "Вычисляет максимальное количество камер"},
+        {"kk": "Камералардың минималды санын есептеу",
+         "ru": "Вычисляет минимальное количество камер"},
     ],
     "Мәдениетаралық сауаттылық": [
-        {"kk": "Дұрыс және проблемалы хабарламаларды анықтау", "ru": "Определение корректного и проблемных сообщений"},
-        {"kk": "Мәдениетаралық тәуекелдерді талдау", "ru": "Аргументация и анализ межкультурных рисков"},
-        {"kk": "Мәдениетаралық сауаттылық қағидаттарын түсіну", "ru": "Понимание принципов межкультурной грамотности"},
-        {"kk": "Оқушыларға арналған практикалық ұсынымдар", "ru": "Практические рекомендации обучающимся"},
-        {"kk": "Фестивальге арналған мини-нұсқаулық", "ru": "Мини-инструкция (памятка) для фестиваля"},
+        {"kk": "Дұрыс және проблемалы хабарламаларды анықтау",
+         "ru": "Определение корректного и проблемных сообщений"},
+        {"kk": "Мәдениетаралық тәуекелдерді талдау",
+         "ru": "Аргументация и анализ межкультурных рисков"},
+        {"kk": "Мәдениетаралық сауаттылық қағидаттарын түсіну",
+         "ru": "Понимание принципов межкультурной грамотности"},
+        {"kk": "Оқушыларға арналған практикалық ұсынымдар",
+         "ru": "Практические рекомендации обучающимся"},
+        {"kk": "Фестивальге арналған мини-нұсқаулық",
+         "ru": "Мини-инструкция (памятка) для фестиваля"},
     ],
     "Қаржылық сауаттылық": [
         {"kk": "Бюджетті жоспарлау және негіздеу", "ru": "Планирование и обоснование бюджета"},
@@ -85,17 +91,22 @@ CRITERIA_BI = {
     ],
     "Цифрлық сауаттылық": [
         {"kk": "Легитимді хатты анықтау", "ru": "Определение легитимного письма"},
-        {"kk": "Цифрлық тәуекелдерді талдау және аргументация", "ru": "Анализ и аргументация цифровых рисков"},
-        {"kk": "Цифрлық қауіпсіздік қағидаттарын түсіну", "ru": "Понимание принципов цифровой безопасности"},
-        {"kk": "Күмәнді хат алған жағдайда әрекет ету алгоритмі", "ru": "Алгоритм действий при подозрительном письме"},
-        {"kk": "Мектептің киберқауіпсіздігін қамтамасыз ету бойынша ұсыныстар", "ru": "Предложения по обеспечению кибербезопасности школы"},
+        {"kk": "Цифрлық тәуекелдерді талдау және аргументация",
+         "ru": "Анализ и аргументация цифровых рисков"},
+        {"kk": "Цифрлық қауіпсіздік қағидаттарын түсіну",
+         "ru": "Понимание принципов цифровой безопасности"},
+        {"kk": "Күмәнді хат алған жағдайда әрекет ету алгоритмі",
+         "ru": "Алгоритм действий при подозрительном письме"},
+        {"kk": "Мектептің киберқауіпсіздігін қамтамасыз ету бойынша ұсыныстар",
+         "ru": "Предложения по обеспечению кибербезопасности школы"},
     ],
     "Оқу сауаттылығы": [
         {"kk": "Мәтінді түсіну және пайдалану", "ru": "Понимание и использование текста"},
         {"kk": "Шешімнің дәлелділігі мен логикасы", "ru": "Аргументация и логика решения"},
         {"kk": "Ұсынылған қадамдардың іске асырылу мүмкіндігі", "ru": "Реалистичность предложенных шагов"},
         {"kk": "Тапсырманың толық орындалуы", "ru": "Полнота выполнения задания"},
-        {"kk": "Топтық жұмыстың үйлесімділігі және рәсімделуі", "ru": "Согласованность командной работы и оформление результата"},
+        {"kk": "Топтық жұмыстың үйлесімділігі және рәсімделуі",
+         "ru": "Согласованность командной работы и оформление результата"},
     ],
     "Экологиялық сауаттылық": [
         {"kk": "Шешімнің Негізделуі", "ru": "Обоснованность Решения"},
@@ -106,7 +117,6 @@ CRITERIA_BI = {
     ],
 }
 
-# Aliases to migrate old saved JSON (previous direction names -> new KK names)
 ALIASES = {
     "Естественно-научная грамотность": "Жаратылыстану-ғылыми сауаттылық",
     "Жаратылыстану-ғылыми сауаттылық": "Жаратылыстану-ғылыми сауаттылық",
@@ -127,34 +137,19 @@ ALIASES = {
 }
 
 
-# ---------------- Query params helpers (fullscreen views) ----------------
-def _get_query_params() -> dict:
-    # Works across Streamlit versions
-    try:
-        qp = dict(st.query_params)
-        return qp
-    except Exception:
-        return st.experimental_get_query_params()
-
-def _get_qp_value(qp: dict, key: str, default: str | None = None) -> str | None:
-    v = qp.get(key, default)
+# ---------------- Query params (FIX: use ONLY st.query_params) ----------------
+# Never call st.experimental_*query_params* anywhere to avoid the StreamlitAPIException.
+def qp_get(key: str, default: str | None = None) -> str | None:
+    v = st.query_params.get(key, default)
     if isinstance(v, list):
         return v[0] if v else default
     return v
 
 def set_view(view: str | None, fs: bool):
-    # Clear or set query params
-    try:
-        if view is None:
-            st.experimental_set_query_params()
-        else:
-            st.experimental_set_query_params(view=view, fs="1" if fs else "0")
-    except Exception:
-        # Older versions might only have experimental
-        if view is None:
-            st.experimental_set_query_params()
-        else:
-            st.experimental_set_query_params(view=view, fs="1" if fs else "0")
+    st.query_params.clear()
+    if view is not None:
+        st.query_params["view"] = view
+        st.query_params["fs"] = "1" if fs else "0"
 
 
 # ---------------- SAFE HTML RENDER ----------------
@@ -195,10 +190,8 @@ def apply_base_css():
 """)
 
 def apply_fullscreen_css():
-    # Hide Streamlit UI artifacts; cannot hide browser URL bar (use F11 / kiosk)
     render_html("""
 <style>
-/* Hide Streamlit chrome */
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
 header { visibility: hidden; }
@@ -206,12 +199,7 @@ header { visibility: hidden; }
 [data-testid="stSidebar"] { display: none !important; }
 [data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
-
-/* Reduce padding */
 .block-container { padding-top: 0.6rem !important; max-width: 1600px !important; }
-
-/* Hide any warnings spacing a bit */
-div[data-testid="stAlert"] { margin-top: 0.2rem; }
 </style>
 """)
 
@@ -241,7 +229,7 @@ def direction_bi_html(direction_kk: str) -> str:
     return f"<div class='team'><div class='kk'>{direction_kk}</div><div class='ru'>{ru}</div></div>"
 
 
-# ---------------- LOGO (ALWAYS VISIBLE ON LOAD) ----------------
+# ---------------- LOGO ----------------
 def find_logo_path() -> str | None:
     for p in LOGO_CANDIDATES:
         if os.path.exists(p):
@@ -470,7 +458,7 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
     return final_order
 
 
-# ---------------- RADAR (clearer, labels pushed outward) ----------------
+# ---------------- RADAR ----------------
 def wrap_label(s: str, width: int = 22) -> str:
     return "\n".join(textwrap.wrap(s, width=width)) if len(s) > width else s
 
@@ -492,11 +480,8 @@ def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontsize=9)
-
-    # push criterion labels away from the radar
     ax.tick_params(axis="x", pad=28)
 
-    # Y scale annotations (clear)
     ax.set_ylim(0, max_val)
     ax.set_yticks([0, 1, 2])
     ax.set_yticklabels(["0 ұпай\n0 балл", "1 ұпай\n1 балл", "2 ұпай\n2 балл"], fontsize=10)
@@ -505,24 +490,20 @@ def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
     ax.yaxis.grid(alpha=0.30, linewidth=1.1)
     ax.spines["polar"].set_alpha(0.25)
 
-    # plot
     ax.plot(angles, vals, linewidth=2.8, alpha=0.95)
     ax.fill(angles, vals, alpha=0.12)
 
-    # Title INSIDE the figure so it shows when user enlarges the plot
     ax.set_title(
         f"{direction_kk}\n{DIRECTION_RU.get(direction_kk, '')}",
         fontsize=14,
         fontweight="bold",
         pad=30,
     )
-
-    # give the title/labels a bit more room
     fig.subplots_adjust(top=0.86, bottom=0.05, left=0.06, right=0.94)
     return fig
 
 
-# ---------------- CONFETTI (fullscreen winners) ----------------
+# ---------------- CONFETTI ----------------
 def launch_confetti_once():
     if st.session_state.get("_confetti_done"):
         return
@@ -607,17 +588,14 @@ def render_radars(state: dict, order: list[str], two_cols: bool = True):
 # ---------------- MAIN APP ----------------
 apply_base_css()
 
-qp = _get_query_params()
-view = _get_qp_value(qp, "view", None)
-fs = _get_qp_value(qp, "fs", "0") == "1"
+view = qp_get("view", None)
+fs = qp_get("fs", "0") == "1"
 
-# Fullscreen view mode (no sidebar/mode controls)
+# Fullscreen view mode
 if view in {"order", "leaderboard", "radars"}:
     if fs:
         apply_fullscreen_css()
 
-    # In fullscreen views we hide the big logo to maximize space.
-    # If you want logo on fullscreen too, set show_in_main=True here.
     show_logo_sidebar_and_main(show_in_main=not fs)
 
     state = load_state()
@@ -638,13 +616,11 @@ if view in {"order", "leaderboard", "radars"}:
     elif view == "radars":
         bi_h1("Нәтижелер", "Результаты")
         render_html("<hr class='hr'>")
-        # Fullscreen radar view: 1 column for maximum size + scroll
         render_radars(state, order, two_cols=not fs)
 
     st.stop()
 
-
-# Normal app mode (with sidebar)
+# Normal app mode
 show_logo_sidebar_and_main(show_in_main=True)
 
 state = load_state()
@@ -657,7 +633,7 @@ mode = st.sidebar.radio(
     key="mode_radio",
 )
 
-# ---------------- SETTINGS (Презентациялар кезектілігі) ----------------
+# ---------------- SETTINGS ----------------
 if mode == "Презентациялар кезектілігі":
     require_pin_if_needed()
 
@@ -689,10 +665,6 @@ if mode == "Презентациялар кезектілігі":
         render_html(f"""
 <div class="commitbox">
   <div><b>Жеребе әділдігі</b> <span class="small-muted">Честность жеребьёвки</span></div>
-  <div class="small-muted">
-    Commit алдымен көрсетіледі, жеребе seed арқылы өтеді, соңында seed ашылады.<br/>
-    Commit показывается заранее, порядок фиксируется seed, в конце seed раскрывается.
-  </div>
   <div class="small-muted">Commit: <code>{commit}</code></div>
 </div>
 """)
@@ -724,23 +696,13 @@ if mode == "Презентациялар кезектілігі":
     render_html("<hr class='hr'>")
     render_order_list(state, show_heading=True)
 
-    # Fullscreen link button (no PIN required in fullscreen view)
     cfs1, cfs2 = st.columns([1, 5])
     if cfs1.button("Толық экран", use_container_width=True, key="fs_order"):
         set_view("order", True)
         st.rerun()
-    cfs2.caption("Открыть только этот блок в полноэкранном режиме (URL скрывается через F11/киоск)")
+    cfs2.caption("Тек осы блок. URL жасыру үшін F11 басыңыз.")
 
-    render_html("<hr class='hr'>")
-    bi_h2("Бағыттар мен критерийлер", "Направления и критерии")
-    with st.expander("Көру", expanded=False):
-        st.caption("Смотреть")
-        for d in DIRECTIONS:
-            render_html(f"<div style='margin-top:10px'><b>{d}</b><div class='small-muted'>{DIRECTION_RU.get(d,'')}</div></div>")
-            for i, crit in enumerate(CRITERIA_BI[d], start=1):
-                render_html(f"<div style='margin-left:10px'>{i}. <b>{crit['kk']}</b><div class='small-muted'>{crit['ru']}</div></div>")
-
-# ---------------- JURY (Бағалау) ----------------
+# ---------------- JURY ----------------
 elif mode == "Бағалау":
     require_pin_if_needed()
     sync_session_from_file_state(state)
@@ -774,10 +736,8 @@ elif mode == "Бағалау":
                 )
 
     c1, c2, c3 = st.columns([1, 1, 2])
-
     do_save = c1.button("Сақтау", key="save_scores_btn", use_container_width=True)
     c1.caption("Сохранить")
-
     do_reset = c2.button("Барлығын 0-ге қайтару", key="reset_scores_btn", use_container_width=True)
     c2.caption("Сбросить всё в 0")
 
@@ -802,13 +762,14 @@ elif mode == "Бағалау":
         st.caption("Сброс выполнен.")
         st.rerun()
 
-# ---------------- RESULTS (Нәтижелер) ----------------
+# ---------------- RESULTS ----------------
 else:
     bi_h1("Нәтижелер", "Результаты")
     caption_bi(
         f"Соңғы жаңарту: {state.get('updated_at')}",
         f"Последнее обновление: {state.get('updated_at')}",
     )
+
     updated_at = state.get("updated_at") or ""
     order = state.get("presentation_order") or list(DIRECTIONS)
 
@@ -819,7 +780,7 @@ else:
     if cfs1.button("Толық экран", use_container_width=True, key="fs_radars"):
         set_view("radars", True)
         st.rerun()
-    cfs2.caption("Открыть радар-графики в отдельном полноэкранном режиме (можно скроллить)")
+    cfs2.caption("Радарлар (скролл болады). URL жасыру үшін F11 басыңыз.")
 
     render_html("<hr class='hr'>")
     render_leaderboard(state, show_heading=True)
@@ -828,9 +789,8 @@ else:
     if cfs3.button("Толық экран", use_container_width=True, key="fs_leaderboard"):
         set_view("leaderboard", True)
         st.rerun()
-    cfs4.caption("Полноэкранный режим рейтинга включает конфетти")
+    cfs4.caption("Рейтинг толық экранда конфетти қосылады. URL жасыру үшін F11 басыңыз.")
 
-    # Download button moved to the very bottom (below final results)
     df_tot = totals_df(state)
     df_det = details_df(state)
     excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
