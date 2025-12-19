@@ -12,8 +12,10 @@ from math import pi
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Hackathon Results", layout="wide")
+
 
 # ---------------- CONFIG ----------------
 MAX_PER_CRITERION = 2
@@ -23,7 +25,6 @@ PIN = st.secrets.get("ADMIN_PIN", None)
 PIN_REQUIRED = PIN is not None
 
 # Put your event logo file next to app.py (recommended).
-# Add/rename candidates here to match your repository file name.
 LOGO_CANDIDATES = [
     "event_logo.png",
     "Логотип-рус.png",
@@ -39,7 +40,7 @@ DIRECTIONS = [
     "Мәдениетаралық сауаттылық",
     "Қаржылық сауаттылық",
     "Цифрлық сауаттылық",
-    "Оқырмандық сауаттылық",
+    "Оқу сауаттылығы",  # renamed
     "Экологиялық сауаттылық",
 ]
 DIRECTION_RU = {
@@ -48,7 +49,7 @@ DIRECTION_RU = {
     "Мәдениетаралық сауаттылық": "Межкультурная грамотность",
     "Қаржылық сауаттылық": "Финансовая грамотность",
     "Цифрлық сауаттылық": "Цифровая грамотность",
-    "Оқырмандық сауаттылық": "Читательская грамотность",
+    "Оқу сауаттылығы": "Читательская грамотность",
     "Экологиялық сауаттылық": "Экологическая грамотность",
 }
 
@@ -89,7 +90,7 @@ CRITERIA_BI = {
         {"kk": "Күмәнді хат алған жағдайда әрекет ету алгоритмі", "ru": "Алгоритм действий при подозрительном письме"},
         {"kk": "Мектептің киберқауіпсіздігін қамтамасыз ету бойынша ұсыныстар", "ru": "Предложения по обеспечению кибербезопасности школы"},
     ],
-    "Оқырмандық сауаттылық": [
+    "Оқу сауаттылығы": [
         {"kk": "Мәтінді түсіну және пайдалану", "ru": "Понимание и использование текста"},
         {"kk": "Шешімнің дәлелділігі мен логикасы", "ru": "Аргументация и логика решения"},
         {"kk": "Ұсынылған қадамдардың іске асырылу мүмкіндігі", "ru": "Реалистичность предложенных шагов"},
@@ -118,11 +119,42 @@ ALIASES = {
     "Цифровая грамотность": "Цифрлық сауаттылық",
     "Цифрлық сауаттылық": "Цифрлық сауаттылық",
     "Цифрлық қауіпсіздік / Цифровая безопасность": "Цифрлық сауаттылық",
-    "Читательская грамотность": "Оқырмандық сауаттылық",
-    "Оқырмандық сауаттылық": "Оқырмандық сауаттылық",
+    "Читательская грамотность": "Оқу сауаттылығы",
+    "Оқырмандық сауаттылық": "Оқу сауаттылығы",
+    "Оқу сауаттылығы": "Оқу сауаттылығы",
     "Экологическая грамотность": "Экологиялық сауаттылық",
     "Экологиялық сауаттылық": "Экологиялық сауаттылық",
 }
+
+
+# ---------------- Query params helpers (fullscreen views) ----------------
+def _get_query_params() -> dict:
+    # Works across Streamlit versions
+    try:
+        qp = dict(st.query_params)
+        return qp
+    except Exception:
+        return st.experimental_get_query_params()
+
+def _get_qp_value(qp: dict, key: str, default: str | None = None) -> str | None:
+    v = qp.get(key, default)
+    if isinstance(v, list):
+        return v[0] if v else default
+    return v
+
+def set_view(view: str | None, fs: bool):
+    # Clear or set query params
+    try:
+        if view is None:
+            st.experimental_set_query_params()
+        else:
+            st.experimental_set_query_params(view=view, fs="1" if fs else "0")
+    except Exception:
+        # Older versions might only have experimental
+        if view is None:
+            st.experimental_set_query_params()
+        else:
+            st.experimental_set_query_params(view=view, fs="1" if fs else "0")
 
 
 # ---------------- SAFE HTML RENDER ----------------
@@ -131,10 +163,11 @@ def render_html(html: str):
     st.markdown(html, unsafe_allow_html=True)
 
 
-# ---------------- GLOBAL STYLE ----------------
-render_html("""
+# ---------------- STYLES ----------------
+def apply_base_css():
+    render_html("""
 <style>
-.block-container { padding-top: 1.4rem; padding-bottom: 2.0rem; max-width: 1400px; }
+.block-container { padding-top: 1.2rem; padding-bottom: 2.0rem; max-width: 1400px; }
 .small-muted { color: #8a8a8a; font-size: 0.92rem; }
 .hr { height: 1px; background: rgba(255,255,255,0.10); border: none; margin: 1.2rem 0; }
 
@@ -158,9 +191,27 @@ render_html("""
 .drawitem.picked { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.07); }
 .drawbadge { display:inline-block; font-size: 0.82rem; color:#9aa0a6; border:1px solid rgba(255,255,255,0.10); padding:2px 10px; border-radius:999px; margin-left: 10px; }
 .commitbox { border:1px dashed rgba(255,255,255,0.18); border-radius: 16px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+</style>
+""")
 
-.logo-wrap { display:flex; justify-content:center; align-items:center; margin: 0.2rem 0 1.2rem 0; }
-.logo-wrap img { max-width: 780px; width: 100%; height: auto; }
+def apply_fullscreen_css():
+    # Hide Streamlit UI artifacts; cannot hide browser URL bar (use F11 / kiosk)
+    render_html("""
+<style>
+/* Hide Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header { visibility: hidden; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+
+/* Reduce padding */
+.block-container { padding-top: 0.6rem !important; max-width: 1600px !important; }
+
+/* Hide any warnings spacing a bit */
+div[data-testid="stAlert"] { margin-top: 0.2rem; }
 </style>
 """)
 
@@ -190,22 +241,20 @@ def direction_bi_html(direction_kk: str) -> str:
     return f"<div class='team'><div class='kk'>{direction_kk}</div><div class='ru'>{ru}</div></div>"
 
 
-# ---------------- LOGO (ALWAYS VISIBLE) ----------------
+# ---------------- LOGO (ALWAYS VISIBLE ON LOAD) ----------------
 def find_logo_path() -> str | None:
     for p in LOGO_CANDIDATES:
         if os.path.exists(p):
             return p
     return None
 
-def show_logo_sidebar_and_main():
+def show_logo_sidebar_and_main(show_in_main: bool = True):
     p = find_logo_path()
     if not p:
         return
     st.sidebar.image(p, use_container_width=True)
-    # main page logo (shows even before PIN because it renders before gating)
-    st.image(p, use_container_width=True)
-
-show_logo_sidebar_and_main()
+    if show_in_main:
+        st.image(p, use_container_width=True)
 
 
 # ---------------- AUTH ----------------
@@ -227,7 +276,7 @@ def default_state():
     return {
         "scores": scores,
         "presentation_order": list(DIRECTIONS),
-        "last_draw": None,   # {"commit":..., "seed":..., "method":..., "time":...}
+        "last_draw": None,
         "updated_at": None,
     }
 
@@ -400,14 +449,12 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
     for k, chosen in enumerate(final_order, start=1):
         chosen_idx = remaining.index(chosen)
 
-        # highlight flicker (visual only; outcome already fixed by seed)
         for _ in range(20):
             hi = rng_visual.randrange(len(remaining))
             with ph_list:
                 render_html(draw_html(picked, remaining, hi))
             time.sleep(0.05)
 
-        # land on the chosen item clearly
         for _ in range(7):
             with ph_list:
                 render_html(draw_html(picked, remaining, chosen_idx))
@@ -423,45 +470,183 @@ def run_fair_draw_animation_with_seed(seed: str, directions: list[str]) -> list[
     return final_order
 
 
-# ---------------- RADAR ----------------
-def wrap_label(s: str, width: int = 18) -> str:
+# ---------------- RADAR (clearer, labels pushed outward) ----------------
+def wrap_label(s: str, width: int = 22) -> str:
     return "\n".join(textwrap.wrap(s, width=width)) if len(s) > width else s
 
 def plot_radar(direction_kk: str, values: list[int], max_val: int = 2):
     crits = CRITERIA_BI[direction_kk]
-    labels = [f"{i+1}. {wrap_label(c['kk'], 20)}\n{wrap_label(c['ru'], 20)}" for i, c in enumerate(crits)]
+    labels = [
+        f"{i+1}. {wrap_label(c['kk'], 22)}\n{wrap_label(c['ru'], 22)}"
+        for i, c in enumerate(crits)
+    ]
 
     n = len(labels)
     angles = [i / float(n) * 2 * pi for i in range(n)]
     angles += angles[:1]
     vals = list(values) + [values[0]]
 
-    fig, ax = plt.subplots(figsize=(5.6, 5.6), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(6.2, 6.2), subplot_kw=dict(polar=True))
     ax.set_theta_offset(pi / 2)
     ax.set_theta_direction(-1)
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=8)
+    ax.set_xticklabels(labels, fontsize=9)
 
+    # push criterion labels away from the radar
+    ax.tick_params(axis="x", pad=28)
+
+    # Y scale annotations (clear)
     ax.set_ylim(0, max_val)
-    ax.set_yticks(list(range(0, max_val + 1)))
-    ax.set_yticklabels([str(i) for i in range(0, max_val + 1)], fontsize=9)
+    ax.set_yticks([0, 1, 2])
+    ax.set_yticklabels(["0 ұпай\n0 балл", "1 ұпай\n1 балл", "2 ұпай\n2 балл"], fontsize=10)
 
-    ax.grid(alpha=0.25)
+    ax.grid(alpha=0.22)
+    ax.yaxis.grid(alpha=0.30, linewidth=1.1)
     ax.spines["polar"].set_alpha(0.25)
 
-    ax.plot(angles, vals, linewidth=2.6, alpha=0.95)
+    # plot
+    ax.plot(angles, vals, linewidth=2.8, alpha=0.95)
     ax.fill(angles, vals, alpha=0.12)
 
-    # IMPORTANT: title inside the figure so it shows on "enlarge"
-    title_ru = DIRECTION_RU.get(direction_kk, "")
-    ax.set_title(f"{direction_kk}\n{title_ru}", fontsize=13, fontweight="bold", pad=26)
+    # Title INSIDE the figure so it shows when user enlarges the plot
+    ax.set_title(
+        f"{direction_kk}\n{DIRECTION_RU.get(direction_kk, '')}",
+        fontsize=14,
+        fontweight="bold",
+        pad=30,
+    )
 
-    fig.tight_layout()
+    # give the title/labels a bit more room
+    fig.subplots_adjust(top=0.86, bottom=0.05, left=0.06, right=0.94)
     return fig
 
 
-# ---------------- APP ----------------
+# ---------------- CONFETTI (fullscreen winners) ----------------
+def launch_confetti_once():
+    if st.session_state.get("_confetti_done"):
+        return
+    st.session_state["_confetti_done"] = True
+    components.html(
+        """
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+(function() {
+  function burst() {
+    confetti({particleCount: 120, spread: 75, origin: { y: 0.65 }});
+    confetti({particleCount: 80, spread: 120, origin: { x: 0.2, y: 0.55 }});
+    confetti({particleCount: 80, spread: 120, origin: { x: 0.8, y: 0.55 }});
+  }
+  burst();
+  setTimeout(burst, 450);
+  setTimeout(burst, 900);
+})();
+</script>
+        """,
+        height=0,
+    )
+
+
+# ---------------- Sections renderers ----------------
+def render_order_list(state: dict, show_heading: bool = True):
+    if show_heading:
+        bi_h2(
+            "Жеребе арқылы анықталған презентациялар кезектілігі:",
+            "Очередность презентаций, определенная жеребьёвкой:",
+        )
+    order = state.get("presentation_order") or list(DIRECTIONS)
+    rows = "<div class='lb'>"
+    for i, name in enumerate(order, start=1):
+        rows += f"<div class='lbrow'><div class='rank'>{i}</div><div>{direction_bi_html(name)}</div><div class='score'></div></div>"
+    rows += "</div>"
+    render_html(rows)
+
+def render_leaderboard(state: dict, show_heading: bool = True):
+    df_tot = totals_df(state)
+    if show_heading:
+        bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
+    rows_html = "<div class='lb'>"
+    for i, row in df_tot.reset_index(drop=True).iterrows():
+        rank = i + 1
+        name = row["Бағыт"]
+        total = int(row["Total"])
+        badge = f"{rank}-орын"
+        cls = "lbrow"
+        if rank == 1:
+            cls += " top1"
+        elif rank == 2:
+            cls += " top2"
+        elif rank == 3:
+            cls += " top3"
+        rows_html += (
+            f"<div class='{cls}'>"
+            f"<div class='rank'>{rank}</div>"
+            f"<div class='team'><div class='kk'>{name}<span class='badchip'>{badge}</span></div>"
+            f"<div class='ru'>{DIRECTION_RU.get(name,'')}</div></div>"
+            f"<div class='score'>{total}</div>"
+            f"</div>"
+        )
+    rows_html += "</div>"
+    render_html(rows_html)
+
+def render_radars(state: dict, order: list[str], two_cols: bool = True):
+    bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
+    per_row = 2 if two_cols else 1
+    for start in range(0, len(order), per_row):
+        cols = st.columns(per_row)
+        for j in range(per_row):
+            idx = start + j
+            if idx >= len(order):
+                break
+            d = order[idx]
+            vals = [int(x) for x in state["scores"][d]]
+            fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION)
+            cols[j].pyplot(fig, clear_figure=True)
+
+
+# ---------------- MAIN APP ----------------
+apply_base_css()
+
+qp = _get_query_params()
+view = _get_qp_value(qp, "view", None)
+fs = _get_qp_value(qp, "fs", "0") == "1"
+
+# Fullscreen view mode (no sidebar/mode controls)
+if view in {"order", "leaderboard", "radars"}:
+    if fs:
+        apply_fullscreen_css()
+
+    # In fullscreen views we hide the big logo to maximize space.
+    # If you want logo on fullscreen too, set show_in_main=True here.
+    show_logo_sidebar_and_main(show_in_main=not fs)
+
+    state = load_state()
+    order = state.get("presentation_order") or list(DIRECTIONS)
+
+    if view == "order":
+        bi_h1("Презентациялар кезектілігі", "Очередность презентаций")
+        render_html("<hr class='hr'>")
+        render_order_list(state, show_heading=True)
+
+    elif view == "leaderboard":
+        bi_h1("Нәтижелер", "Результаты")
+        render_html("<hr class='hr'>")
+        render_leaderboard(state, show_heading=True)
+        if fs:
+            launch_confetti_once()
+
+    elif view == "radars":
+        bi_h1("Нәтижелер", "Результаты")
+        render_html("<hr class='hr'>")
+        # Fullscreen radar view: 1 column for maximum size + scroll
+        render_radars(state, order, two_cols=not fs)
+
+    st.stop()
+
+
+# Normal app mode (with sidebar)
+show_logo_sidebar_and_main(show_in_main=True)
+
 state = load_state()
 
 st.sidebar.markdown("### Режим / Режим")
@@ -505,7 +690,7 @@ if mode == "Презентациялар кезектілігі":
 <div class="commitbox">
   <div><b>Жеребе әділдігі</b> <span class="small-muted">Честность жеребьёвки</span></div>
   <div class="small-muted">
-    Commit алдымен көрсетіледі, жеребе сол commit-ке сәйкес seed арқылы өтеді, соңында seed ашылады.<br/>
+    Commit алдымен көрсетіледі, жеребе seed арқылы өтеді, соңында seed ашылады.<br/>
     Commit показывается заранее, порядок фиксируется seed, в конце seed раскрывается.
   </div>
   <div class="small-muted">Commit: <code>{commit}</code></div>
@@ -537,17 +722,14 @@ if mode == "Презентациялар кезектілігі":
         st.rerun()
 
     render_html("<hr class='hr'>")
-    bi_h2(
-        "Жеребе арқылы анықталған презентациялар кезектілігі:",
-        "Очередность презентаций, определенная жеребьёвкой:",
-    )
+    render_order_list(state, show_heading=True)
 
-    order = state.get("presentation_order") or list(DIRECTIONS)
-    rows = "<div class='lb'>"
-    for i, name in enumerate(order, start=1):
-        rows += f"<div class='lbrow'><div class='rank'>{i}</div><div>{direction_bi_html(name)}</div><div class='score'></div></div>"
-    rows += "</div>"
-    render_html(rows)
+    # Fullscreen link button (no PIN required in fullscreen view)
+    cfs1, cfs2 = st.columns([1, 5])
+    if cfs1.button("Толық экран", use_container_width=True, key="fs_order"):
+        set_view("order", True)
+        st.rerun()
+    cfs2.caption("Открыть только этот блок в полноэкранном режиме (URL скрывается через F11/киоск)")
 
     render_html("<hr class='hr'>")
     bi_h2("Бағыттар мен критерийлер", "Направления и критерии")
@@ -627,59 +809,29 @@ else:
         f"Соңғы жаңарту: {state.get('updated_at')}",
         f"Последнее обновление: {state.get('updated_at')}",
     )
-
     updated_at = state.get("updated_at") or ""
-
-    # Radar plots per direction (bigger, 2 columns)
-    render_html("<hr class='hr'>")
-    bi_h2("Бағыттардың профилі (радар диаграмма, шкала 0–2)", "Профиль направлений (радар-диаграмма, шкала 0–2)")
-
     order = state.get("presentation_order") or list(DIRECTIONS)
 
-    per_row = 2
-    for start in range(0, len(order), per_row):
-        cols = st.columns(per_row)
-        for j in range(per_row):
-            idx = start + j
-            if idx >= len(order):
-                break
-            d = order[idx]
-            vals = [int(x) for x in state["scores"][d]]
-            fig = plot_radar(d, vals, max_val=MAX_PER_CRITERION)
-            cols[j].pyplot(fig, clear_figure=True)
+    render_html("<hr class='hr'>")
+    render_radars(state, order, two_cols=True)
 
-    # Final rating
-    df_tot = totals_df(state)
+    cfs1, cfs2 = st.columns([1, 5])
+    if cfs1.button("Толық экран", use_container_width=True, key="fs_radars"):
+        set_view("radars", True)
+        st.rerun()
+    cfs2.caption("Открыть радар-графики в отдельном полноэкранном режиме (можно скроллить)")
 
     render_html("<hr class='hr'>")
-    bi_h2("Жалпы ұпай (кему ретімен)", "Общий балл (по убыванию)")
+    render_leaderboard(state, show_heading=True)
 
-    rows_html = "<div class='lb'>"
-    for i, row in df_tot.reset_index(drop=True).iterrows():
-        rank = i + 1
-        name = row["Бағыт"]
-        total = int(row["Total"])
-        badge = f"{rank}-орын"
-        cls = "lbrow"
-        if rank == 1:
-            cls += " top1"
-        elif rank == 2:
-            cls += " top2"
-        elif rank == 3:
-            cls += " top3"
+    cfs3, cfs4 = st.columns([1, 5])
+    if cfs3.button("Толық экран", use_container_width=True, key="fs_leaderboard"):
+        set_view("leaderboard", True)
+        st.rerun()
+    cfs4.caption("Полноэкранный режим рейтинга включает конфетти")
 
-        rows_html += (
-            f"<div class='{cls}'>"
-            f"<div class='rank'>{rank}</div>"
-            f"<div class='team'><div class='kk'>{name}<span class='badchip'>{badge}</span></div>"
-            f"<div class='ru'>{DIRECTION_RU.get(name,'')}</div></div>"
-            f"<div class='score'>{total}</div>"
-            f"</div>"
-        )
-    rows_html += "</div>"
-    render_html(rows_html)
-
-    # Download button moved to very bottom (below final results)
+    # Download button moved to the very bottom (below final results)
+    df_tot = totals_df(state)
     df_det = details_df(state)
     excel_bytes = to_excel_bytes(df_tot.copy(), df_det.copy(), updated_at)
     filename = f"hackathon_results_{updated_at.replace(':','-').replace(' ','_') or 'export'}.xlsx"
